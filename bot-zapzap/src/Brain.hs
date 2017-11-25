@@ -24,12 +24,6 @@ import Voronoy
 import Monad (BotOutput)
 import Astar
 
-data Target = Target {
-    t_pos :: Pos
-  , t_node :: Pos
-  , t_tile :: Tile
-  } deriving (Show)
-
 -- type Length = Integer
 type Reward = Rational
 type HP = Integer
