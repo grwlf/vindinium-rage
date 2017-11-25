@@ -1,0 +1,70 @@
+name:                vindinium-engine
+version:             0.1.0.0
+license:             MIT
+license-file:        LICENSE
+author:              Sergey Mironov
+maintainer:          grrwlf@gmail.com
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+  default-extensions:  FlexibleContexts, ExistentialQuantification,
+                       ScopedTypeVariables, MultiWayIf, TemplateHaskell,
+                       RecordWildCards, OverloadedStrings, LambdaCase,
+                       Rank2Types, NondecreasingIndentation, DeriveGeneric,
+                       DeriveFunctor, BangPatterns, TemplateHaskell,
+                       FunctionalDependencies, FlexibleInstances
+
+  ghc-options:         -fwarn-incomplete-patterns
+
+  build-depends:       base >=4.9 && <5.0,
+                       stm,
+                       mtl,
+                       MonadRandom,
+                       lens,
+                       containers,
+                       hashable,
+                       text,
+                       random,
+                       mersenne-random-pure64,
+                       directory,
+                       heredocs,
+                       pretty-show,
+                       http-client,
+                       http-types,
+                       aeson,
+                       heap,
+                       transformers,
+                       time,
+                       filepath,
+                       optparse-applicative,
+                       bytestring,
+                       unix,
+                       rdtsc,
+                       process,
+                       pqueue,
+                       deepseq,
+                       binary,
+                       psqueues,
+                       gitrev,
+                       unordered-containers
+
+  exposed-modules:     Client
+                       Types
+                       Imports
+                       Perf
+                       Sim
+                       Monad
+                       Util
+                       MA
+                       Driver2
+                       Args
+                       Sigint
+
+                       Control.Break
+                       Control.Monad.Interrupt
+                       Control.Monad.Rnd
+
+  hs-source-dirs:      src,lib
+  default-language:    Haskell2010
+
