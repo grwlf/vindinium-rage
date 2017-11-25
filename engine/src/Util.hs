@@ -25,7 +25,7 @@ dumpGame :: (MonadIO m) => String -> GameId -> Integer -> ServerState -> m ()
 dumpGame tag GameId{..} nmove cs = liftIO $ do
   let gn = printf "game_%s.%s" (Text.unpack gameid) tag
   let f = "data" </> gn </> (printf "%03d.json" nmove)
-  createDirectoryIfMissing False ("data" </> gn)
+  createDirectoryIfMissing True ("data" </> gn)
   ByteString.writeFile (f++".tmp") (Aeson.encode (cs^.stateJSON))
   renameFile (f++".tmp") f
 
@@ -33,7 +33,7 @@ dumpState :: (MonadIO m) => String -> GameId -> Integer -> ServerState -> m ()
 dumpState tag GameId{..} nmove cs = liftIO $ do
   let gn = printf "state_%s.%s" (Text.unpack gameid) tag
   let f = "data" </> gn </> (printf "%03d.json" nmove)
-  createDirectoryIfMissing False ("data" </> gn)
+  createDirectoryIfMissing True ("data" </> gn)
   ByteString.writeFile (f++".tmp") (Aeson.encode (cs^.stateJSON))
   renameFile (f++".tmp") f
 
@@ -41,7 +41,7 @@ dumpPerf :: (MonadIO m) => String -> GameId -> m ()
 dumpPerf tag GameId{..} = liftIO $ do
   let gn = printf "perf_%s.%s" (Text.unpack gameid) tag
   let f = "data" </> gn </> "perf.txt"
-  createDirectoryIfMissing False ("data" </> gn)
+  createDirectoryIfMissing True ("data" </> gn)
   perftext <- Perf.report
   writeFile (f++".tmp") perftext
   renameFile (f++".tmp") f
