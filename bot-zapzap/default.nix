@@ -10,6 +10,11 @@ let
 
   vindinium = import ../engine { inherit nixpkgs compiler; build=true; };
 
+  distSourceFilter = name: type: let baseName = baseNameOf (toString name); in ! (
+    (type == "directory" && (baseName == "dist" || baseName == ".git")) ||
+    false
+    );
+
   bot = haskellPackages.callPackage
       ({ mkDerivation, aeson, base, binary, bytestring, containers
       , deepseq, directory, filepath, hashable, heap
@@ -22,7 +27,7 @@ let
       mkDerivation {
         pname = "vindinium-bot";
         version = "0.1.0.0";
-        src = ./.;
+        src = builtins.filterSource distSourceFilter ./.;
         isLibrary = true;
         isExecutable = true;
         libraryHaskellDepends = [

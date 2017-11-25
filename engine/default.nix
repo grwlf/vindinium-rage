@@ -68,7 +68,6 @@ let
      }) {};
 
   distSourceFilter = name: type: let baseName = baseNameOf (toString name); in ! (
-    # Filter out Subversion and CVS directories.
     (type == "directory" && (baseName == "dist" || baseName == ".git")) ||
     false
     );
