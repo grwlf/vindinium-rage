@@ -9,11 +9,10 @@ cabal-version:       >=1.10
 
 library
   default-extensions:  FlexibleContexts, ExistentialQuantification,
-                       ScopedTypeVariables, MultiWayIf, TemplateHaskell,
-                       RecordWildCards, OverloadedStrings, LambdaCase,
-                       Rank2Types, NondecreasingIndentation, DeriveGeneric,
-                       DeriveFunctor, BangPatterns, TemplateHaskell,
-                       FunctionalDependencies, FlexibleInstances
+                       ScopedTypeVariables, MultiWayIf, RecordWildCards,
+                       OverloadedStrings, LambdaCase, Rank2Types,
+                       NondecreasingIndentation, DeriveGeneric, DeriveFunctor,
+                       BangPatterns, FunctionalDependencies, FlexibleInstances
 
   ghc-options:         -fwarn-incomplete-patterns
 
@@ -37,7 +36,6 @@ library
                        transformers,
                        time,
                        filepath,
-                       optparse-applicative,
                        bytestring,
                        unix,
                        rdtsc,
@@ -46,7 +44,6 @@ library
                        deepseq,
                        binary,
                        psqueues,
-                       gitrev,
                        unordered-containers
 
   exposed-modules:     Client
@@ -57,7 +54,7 @@ library
                        Monad
                        Util
                        MA
-                       Driver2
+                       Driver
                        Args
                        Sigint
 

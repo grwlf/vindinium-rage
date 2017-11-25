@@ -80,7 +80,6 @@ let
       , MonadRandom, mtl, optparse-applicative, pqueue, pretty-show
       , process, psqueues, random, rdtsc, stdenv, stm, text, time
       , transformers, unix, cabal-install, haskdogs, hasktags
-      , gitrev
       }:
       mkDerivation {
         pname = "vindinium-bot";
@@ -93,7 +92,7 @@ let
           hashable heap http-client http-types lens
           mersenne-random-pure64 MonadRandom mtl optparse-applicative pqueue
           pretty-show process psqueues random rdtsc stm text time
-          transformers unix cabal-install heredocs gitrev
+          transformers unix cabal-install heredocs
         ];
         executableHaskellDepends = [
           aeson base binary bytestring containers Diff lens mtl
