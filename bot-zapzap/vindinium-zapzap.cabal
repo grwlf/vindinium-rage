@@ -1,0 +1,30 @@
+name:                vindinium-zapzap
+version:             0.1.0.0
+license:             MIT
+author:              Sergey Mironov
+maintainer:          grrwlf@gmail.com
+build-type:          Simple
+cabal-version:       >=1.10
+
+executable vindinium-zapzap
+  hs-source-dirs:      app,src,lib
+  default-language:    Haskell2010
+  main-is:             Main.hs
+  build-depends:       base >=4.9 && <5.0,
+                       containers,
+                       optparse-applicative,
+                       text,
+                       mtl,
+                       unix,
+                       aeson,
+                       bytestring,
+                       rdtsc,
+                       binary,
+                       vindinium-engine,
+                       lens,
+                       unordered-containers,
+                       psqueues,
+                       hashable,
+                       pqueue,
+                       deepseq
+
