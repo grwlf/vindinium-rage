@@ -17,7 +17,7 @@ argsParser :: Parser Args
 argsParser = Args
   <$> option str (long "tag" <> value "")
   <*> (read <$> option str (long "training" <> short 't' <> value "0"))
-  <*> switch (long "no-dump-state")
+  <*> switch (long "dump-state")
   <*> switch (long "dump-game")
   <*> switch (long "dump-perf")
   <*> switch (long "quiet" <> short 'q')
