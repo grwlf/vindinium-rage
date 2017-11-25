@@ -34,15 +34,6 @@ data Target = Target {
 type Reward = Rational
 type HP = Integer
 
--- nearestTaverns :: Game -> Hero -> ClusterMap Tavs -> MinPQueue Length Path
--- nearestTaverns g h cm = foldClusters cm f MinPQueue.empty (h.>heroPos) where
---   f mpq d c
---     | d > 2 = mpq
---     | otherwise =
---         flip execState mpq $ do
---           forM_ (safeAstarNodes g h (c.>c_nodes)) $ \pp -> do
---             modify $ MinPQueue.insert (pathLength pp) pp
-
 catNodes :: ClusterMap Mines -> Pos -> [Node]
 catNodes cm p =
   List.map snd $
