@@ -26,5 +26,6 @@ executable vindinium-zapzap
                        psqueues,
                        hashable,
                        pqueue,
-                       deepseq
+                       deepseq,
+                       gitrev
 
