@@ -14,12 +14,14 @@ while true ; do
 
   git fetch
 
-  if git branch -v | grep behind ; then
-    git reset --hard origin/master || oops "Reset failed"
+  if LANG=C git branch -v | grep behind ; then
+    git reset --hard origin/zapzap || oops "Reset failed"
     {
       nix-build
     } >nix-build.log 2>&1 ||
       cry "Falied to build the bot"
+  else
+    echo "Update is not needed"
   fi
 
   sleep 5
