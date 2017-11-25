@@ -5,7 +5,7 @@ cry() {
   sendmail "ierton@gmail.com" <<EOF
 Vindinium update script is exiting with:
 $@
-`cat .cabal.log`
+`cat nix-build.log`
 EOF
 }
 
@@ -17,11 +17,9 @@ while true ; do
   if git branch -v | grep behind ; then
     git reset --hard origin/master || oops "Reset failed"
     {
-      cabal install --only-dep
-      cabal configure
-      cabal build
-    } >.cabal.log 2>&1 ||
-      cry "Falied to cabal install the bot"
+      nix-build
+    } >nix-build.log 2>&1 ||
+      cry "Falied to build the bot"
   fi
 
   sleep 5

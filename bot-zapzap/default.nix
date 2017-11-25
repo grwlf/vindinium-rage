@@ -28,7 +28,7 @@ let
         pname = "vindinium-bot";
         version = "0.1.0.0";
         src = builtins.filterSource distSourceFilter ./.;
-        isLibrary = true;
+        isLibrary = false;
         isExecutable = true;
         libraryHaskellDepends = [
           aeson base binary bytestring containers deepseq directory filepath
