@@ -1,9 +1,6 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import Development.GitRev
 import Options.Applicative
 import System.Exit
 import Imports
@@ -23,11 +20,8 @@ argsParser = Args
   <*> switch (long "quiet" <> short 'q')
   <*> switch (long "version" <> short 'v')
 
-fixTag a@Args{..}
-  | args_tag == "" = a { args_tag = (printf "%04d" (read $(gitCommitCount)::Int)) <> "_" <> (take 7 $(gitHash)) <> (if $(gitDirty) then "@" else "") }
-  | otherwise = a
+getArgs = execParser (info (argsParser <**> helper) idm)
 
-getArgs = fixTag <$> execParser (info (argsParser <**> helper) idm)
 main = do
   args <- getArgs
   driver_net (Key "vhkdc75e") args (
