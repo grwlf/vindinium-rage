@@ -128,7 +128,7 @@ driver_net key Args{..} bot =
         game_id <- pure (ss0.>stateGame.gameId)
         i <- pure 0
 
-        when (not args_no_dump_state) $ do
+        when args_dump_state $ do
           dumpState args_tag game_id i ss0
 
         s_init <- pure $ initDriverState args_quiet ss0 i bot' args_tag perf_got_state
@@ -185,7 +185,7 @@ driver_net key Args{..} bot =
               (s_perf_got_state %=) =<< const <$> perfcnt
 
             BotFinish -> do
-              when (not args_no_dump_state) $ do
+              when args_dump_state $ do
                 dumpState args_tag game_id i ss
               break ()
 
