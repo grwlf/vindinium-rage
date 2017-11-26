@@ -11,4 +11,4 @@ exts() {
    done
 }
 
-exec ghci -isrc:lib:app `exts` "$SB" "$@"
+exec ghci -isrc:lib:app:../engine/src:../engine/lib `exts` "$SB" "$@"

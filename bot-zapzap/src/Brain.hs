@@ -21,7 +21,6 @@ import Types
 import Perf
 import Imports
 import Voronoy
-import Monad (BotOutput)
 import Astar
 
 -- type Length = Integer
@@ -175,7 +174,7 @@ killPlans g h clt = foldl' f MaxPQueue.empty (gameEnemies g h) where
             p <- ilength <$> path
             return $
               case (ht'len, h't'len) of
-                (Nothing, Just l') | (p > l') -> True
+                (Nothing, Just l') | (p > l') -> True -- TODO: guard is redundant ?
                 (Just l, Just l') | (l > l') -> True
                 _ -> False
 
@@ -323,7 +322,7 @@ think Bot{..} g hid = Plans{..} where
   drinkPlan = fmap fst $ MaxPQueue.maxView $ drinkPlans g h clt
 
 
-move :: (Monad m) =>  Bot -> Game -> HeroId -> m BotOutput
+move :: (Monad m) =>  Bot -> Game -> HeroId -> m Dir
 move bot@Bot{..} g hid =
   let
     h = g^.gameHeroes.(idx hid)
@@ -353,17 +352,17 @@ move bot@Bot{..} g hid =
   case (nearTavern, needHealing)  of
     (Just tp, True) ->
       trace ("AUTODRINK, " <> planDesc) $
-      return (posDiff (h.>heroPos) tp,mempty)
+      return (posDiff (h.>heroPos) tp)
     _ ->
       case plan of
         Just (p,_) ->
           trace ("BUSY, " <> planDesc) $
-          return (planStep (h.>heroPos) p,mempty)
+          return (planStep (h.>heroPos) p)
         Nothing ->
           trace ("WANDER, " <> planDesc) $
-          return (South,mempty)
+          return South
 
-moveKbdPlans :: (MonadIO m) =>  Bot -> Game -> HeroId -> m BotOutput
+moveKbdPlans :: (MonadIO m) =>  Bot -> Game -> HeroId -> m Dir
 moveKbdPlans bot@Bot{..} g hid =
   let
     h = g^.gameHeroes.(idx hid)
@@ -381,32 +380,31 @@ moveKbdPlans bot@Bot{..} g hid =
     (case plan of
       Just pl -> planStep (h.>heroPos) pl
       Nothing -> Stay
-    ,
-    maybe mempty bimagePlan plan)
+    )
 
 
 data BotIO = BotIO {
     bot_clust :: !(MVar Bot)
   }
 
-
-warmupIO :: (MonadIO m) => Game -> m BotIO
+warmupIO :: Game -> IO BotIO
 warmupIO g = do
   mv <- liftIO $ newEmptyMVar
-
   liftIO $ forkIO $ do
-
     {- shallow compute cm and ct -}
-    Perf.set "warmup" $ do
+    perf "warmup" $ do
       putMVar mv =<< do
         evaluate $ force $ warmup g
 
   return $ BotIO mv
 
 
-moveIO :: (MonadIO m) => BotIO -> Game -> HeroId -> m (Dir,BImage)
-moveIO BotIO{..} g hid = do
+moveIO :: BotIO -> Game -> HeroId -> TChan (Dir,BotIO) ->  IO ()
+moveIO bs@BotIO{..} g hid chan = do
   liftIO (tryReadMVar bot_clust) >>= \case
-    Just b -> move b g hid
-    Nothing -> return (South,mempty)
+    Just b -> do
+      dir <- force <$> move b g hid
+      atomically (writeTChan chan (dir, bs))
+    Nothing -> do
+      atomically (writeTChan chan (Stay, bs))
 

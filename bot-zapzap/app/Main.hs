@@ -3,8 +3,8 @@ module Main where
 
 import Options.Applicative
 import System.Exit
-import Imports
 
+import Imports
 import Types
 import Driver
 import Args
@@ -24,6 +24,6 @@ getArgs = execParser (info (argsParser <**> helper) idm)
 
 main = do
   args <- getArgs
-  driver_net (Key "vhkdc75e") args (
-    controller_simple warmupIO moveIO)
+  driver_net (Key "vhkdc75e") args $ do
+    controller_threaded warmupIO moveIO
 
