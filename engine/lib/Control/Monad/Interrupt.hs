@@ -1,3 +1,6 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts #-}
+
 module Control.Monad.Interrupt where
 
 import Control.Monad.Cont

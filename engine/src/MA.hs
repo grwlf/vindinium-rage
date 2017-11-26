@@ -1,3 +1,7 @@
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE LambdaCase #-}
+
 -- | Moving Average
 module MA where
 

@@ -1,5 +1,12 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Types where
 
 import qualified Data.Aeson as Aeson
@@ -13,6 +20,9 @@ import Imports
 import Perf
 
 type BImage = HashMap Pos Text
+
+emptyBImage :: BImage
+emptyBImage = mempty
 
 class BoardImage a where
   bimage :: a -> BImage

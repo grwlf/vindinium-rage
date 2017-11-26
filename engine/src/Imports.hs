@@ -4,6 +4,7 @@ module Imports (
   , module Control.Applicative
   , module Control.Concurrent
   , module Control.Concurrent.STM
+  , module Control.Concurrent.STM.TChan
   , module Control.Exception
   , module Control.Monad
   , module Control.Monad.Trans
@@ -32,6 +33,7 @@ module Imports (
   , module Data.HashSet
   , module Data.HashMap.Strict
   , module Data.Aeson
+  , module Data.Time
   , module Data.Time.Clock
   , module Data.Time.Calendar
   , module Data.PQueue.Prio.Min
@@ -40,8 +42,8 @@ module Imports (
   , module Prelude
   , module System.Random
   , module System.Random.Mersenne.Pure64
-  , module System.Directory
   , module System.FilePath
+  , module System.Directory
   , module Text.Printf
   , module Text.Heredoc
   , module Text.Show.Pretty
@@ -54,7 +56,8 @@ where
 import Control.Arrow ((&&&),(***))
 import Control.Applicative
 import Control.Concurrent
-import Control.Concurrent.STM
+import Control.Concurrent.STM (STM(..), atomically)
+import Control.Concurrent.STM.TChan (TChan, readTChan, writeTChan, tryReadTChan, newTChanIO)
 import Control.Exception hiding (assert)
 import Control.Monad
 import Control.Monad.Trans
@@ -84,6 +87,7 @@ import Data.Function
 import Data.Text (Text)
 import Data.Time.Clock
 import Data.Time.Calendar
+import Data.Time(diffUTCTime,getCurrentTime,UTCTime,NominalDiffTime)
 import Data.Aeson(FromJSON(..),ToJSON(..),(.:),(.:?),(.=))
 import Data.PQueue.Prio.Min (MinPQueue)
 import Data.PQueue.Prio.Max (MaxPQueue)
@@ -91,7 +95,7 @@ import Debug.Trace hiding(traceM)
 import Prelude hiding(break,print)
 import System.Random
 import System.Random.Mersenne.Pure64
-import System.Directory
+import System.Directory (removeDirectoryRecursive,createDirectoryIfMissing,renameFile,getDirectoryContents)
 import System.FilePath
 import Text.Printf
 import Text.Heredoc

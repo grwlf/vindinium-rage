@@ -5,8 +5,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NondecreasingIndentation #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -18,6 +18,7 @@ import qualified Data.Text.IO as Text
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.List as List
 import qualified Control.Lens as Lens
+
 import System.Exit
 import System.IO (stderr)
 import System.Environment
@@ -33,34 +34,97 @@ import Args
 import Monad
 import Sim
 
--- | Bot driver function
+
+drainTChan :: TChan a -> STM (Maybe a)
+drainTChan tc = go Nothing where
+  go last = do
+    x <- tryReadTChan tc
+    case x of
+      Nothing -> return last
+      Just _ -> go x
+
+-- | Controller implements common interaction between bot functions and the driver.
+-- `controller_threaded init step` calls `init` once, then performs `step` in a loop.
+--
+-- Every move, `step` function starts in new thread as a protection against
+-- exception and timeouts
+controller_threaded :: forall a g m. (MonadIO m, MonadBot m)
+       => (Game -> IO a)
+       -> (a -> Game -> HeroId -> TChan (Dir,a) -> IO ())
+       -> m ()
+controller_threaded botWarmup botMove = do
+  (g0,hid0,tstart0) <- botInit
+  bs0 <- liftIO $ botWarmup g0
+  flip evalStateT (g0,bs0,tstart0) $ do
+    forever $ do
+      (g,bs,tstart) <- get
+
+      bot_channel <- liftIO newTChanIO
+      bot_finished <- liftIO newEmptyMVar
+      handle <- liftIO $ forkIO $ do
+        catch (do
+            botMove bs g hid0 bot_channel
+          )
+          (\(e::SomeException) -> do
+            out [ "Exception '" <> tshow e <> "' from botMove function" ]
+          )
+        putMVar bot_finished ()
+
+      liftIO yield {- re-scheduling -}
+
+      whileM $
+        let
+          advance = do
+            (bm,bs') <- fromMaybe (Stay,bs) <$> liftIO (atomically $ drainTChan bot_channel)
+            (g',_,tstart') <- lift $ botApplyMove bm
+            put (g',bs',tstart')
+            return False
+
+          kill = do
+            liftIO $ killThread handle
+
+          delay = do
+            liftIO $ threadDelay (10^4)
+            return True
+        in do
+        dt <- diffTimeFrom tstart
+        timeout <- pure (dt > 0.8)
+        finished <- isJust <$> liftIO (tryReadMVar bot_finished)
+        case (timeout, finished) of
+          (True, _) -> kill >> advance
+          (False, True) -> advance
+          (False, False) -> delay
+
+
+-- | Controller implements common interaction between bot functions and the driver.
+-- `controller_simple init step` calls `init` once, then performs `step` in a loop.
 controller_simple :: (MonadIO m, MonadBot m, MonadRnd g m)
        => (forall m . (MonadIO m) => Game -> m a)
-       -> (forall g m . (MonadIO m, MonadRnd g m) => a -> Game -> HeroId -> m (Dir,BImage))
+       -> (forall g m . (MonadIO m, MonadRnd g m) => a -> Game -> HeroId -> m Dir)
        -> m ()
 controller_simple botWarmup botMove = do
-  (g0,hid) <- botInit
+  (g0,hid,_) <- botInit
   flip evalStateT g0 $ do
     a <- liftIO (botWarmup g0)
     forever $ do
       g <- get
       x <- botMove a g hid
-      (g',hid') <- lift $ botApplyMoveDbg x
+      (g',hid',_) <- lift $ botApplyMove x
       put g'
 
 -- | Bot driver function
 controller_simple2 :: (MonadIO m, MonadBot m, MonadRnd g m)
        => (forall m . (MonadIO m) => Game -> m a)
-       -> (forall m g . (MonadIO m, MonadRnd g m) => a -> Game -> HeroId -> m (Dir,BImage))
+       -> (forall m g . (MonadIO m, MonadRnd g m) => a -> Game -> HeroId -> m Dir)
        -> m ()
 controller_simple2 botWarmup botMove = do
-  (g0,hid) <- botInit
+  (g0,hid,_) <- botInit
   flip evalStateT g0 $ do
     a <- liftIO (botWarmup g0)
     forever $ do
       g <- get
       x <- (botMove a g hid)
-      (g',hid') <- lift $ botApplyMoveDbg x
+      (g',hid',_) <- lift $ botApplyMove x
       traceM $ gameFindKiller g hid g'
       put g'
 
@@ -68,19 +132,18 @@ data DriverState m = DriverState {
     _s_quiet :: Bool
   -- ^ Quiet
   , _s_server :: ServerState
+  -- ^ State returned from the server
   , _s_nmove :: Integer
   -- ^ Current move
-  , _s_bot :: ((Game,HeroId) -> m ())
+  , _s_bot :: ((Game,HeroId,UTCTime) -> m ())
   -- ^ Bot step function
   , _s_tag :: String
   -- ^ See 'args_tag'
-  , _s_perf_got_state :: PerfCnt
-  , _s_perf_got_dir :: PerfCnt
-  , _s_perf_1sec :: Maybe PerfCnt
-  , _s_dbg :: BImage
+  , _s_tstart :: UTCTime
+  -- ^ Time when driver started the processing of last request
 }
 
-initDriverState q ss i bot t perf = DriverState q ss i bot t perf 0 Nothing mempty
+initDriverState q ss i bot t tstart = DriverState q ss i bot t tstart
 
 $(makeLenses ''DriverState)
 
@@ -120,7 +183,7 @@ driver_net key Args{..} bot =
                 False -> startArena
                 True -> startTraining (Just args_training) Nothing)
 
-        perf_got_state <- perfcnt
+        tstart0 <- liftIO getCurrentTime
 
         {- Main loop -}
         g0 <- pure (ss0.>stateGame)
@@ -131,58 +194,37 @@ driver_net key Args{..} bot =
         when args_dump_state $ do
           dumpState args_tag game_id i ss0
 
-        s_init <- pure $ initDriverState args_quiet ss0 i bot' args_tag perf_got_state
+        s_init <- pure $ initDriverState args_quiet ss0 i bot' args_tag tstart0
 
         flip evalStateT s_init $ do
         loop $ do
+          tstart <- use s_tstart
           ss <- use s_server
           bot <- use s_bot
 
           when (not args_quiet) $ do
-            dbg <- use s_dbg
             clearTerminal
             out [ tpack args_tag ]
             out [ view stateViewUrl ss ]
-            out [ drawGame' (ss.>stateGame) [dbg] ]
+            out [ drawGame' (ss.>stateGame) [] ]
             out ["Me ", tshow (ss.>stateHero.heroId)]
             out [ printHeroStats (ss.>stateGame) ]
 
-          when args_dump_game $ do
+          do
             i <- use s_nmove
             dumpGame args_tag game_id i ss
 
-          r <- lift $ lift $ runBot $ bot (ss.>stateGame, ss.>stateHero.heroId)
-
-          (s_perf_got_dir %=) =<< const <$> perfcnt
-
-          do {
-            sta <- use s_perf_got_state;
-            sto <- use s_perf_got_dir;
-            Perf.create "loop" sta sto;
-            old1sec <- use s_perf_1sec;
-            new1sec <- liftIO (tryTakeMVar mv1sec);
-            let
-              s1sec = msum [new1sec, old1sec]
-            in do
-            s_perf_1sec %= const s1sec;
-            case s1sec of
-              Nothing -> return ()
-              Just x ->
-                let
-                  cnt = ((sto-sta)*100) `div` x
-                in do
-                Perf.counter "busy,%" cnt
-          }
+          r <- lift $ lift $ runBot $ bot (ss.>stateGame, ss.>stateHero.heroId, tstart)
 
           case r of
-            BotMove (dir,dbg) k -> do
+            BotMove dir k -> do
               ss' <- applyMove ss dir
+              tstart' <- liftIO getCurrentTime
+
               s_server %= const ss'
+              s_tstart %= const tstart'
               s_bot %= const k
               s_nmove %= (+1)
-              s_dbg %= const dbg
-
-              (s_perf_got_state %=) =<< const <$> perfcnt
 
             BotFinish -> do
               when args_dump_state $ do
@@ -193,12 +235,16 @@ driver_net key Args{..} bot =
         when (args_dump_perf) $ do
           dumpPerf args_tag game_id
 
+        {- Remove game record -}
+        when (not args_dump_game) $ do
+          removeGame args_tag game_id
+
   Perf.print
 
 data DriverSim_State m = DriverSim_State {
     _ds_g :: Game
   , _ds_hid :: HeroId
-  , _ds_ctl :: HashMap HeroId (((Game,HeroId) -> m ()))
+  , _ds_ctl :: HashMap HeroId (((Game,HeroId,UTCTime) -> m ()))
   , _ds_dbg :: HashMap HeroId BImage
   }
 
@@ -251,14 +297,14 @@ driver_sim file ctl = do
         out [ drawGame' g dbg ]
         err [ printHeroStats g ]
 
-      r <- lift $ lift $ runBot $ bot (g,hid)
+      tstart <- liftIO $ getCurrentTime
+      r <- lift $ lift $ runBot $ bot (g,hid,tstart)
 
       case r of
-        BotMove (dir,dbg) k -> do
+        BotMove dir k -> do
           ds_g %= sim hid dir
           ds_hid %= nextHeroId
           ds_ctl.(idx hid) %= const k
-          ds_dbg.(idx hid) %= const dbg
 
         BotFinish -> do
           break ()

@@ -1,5 +1,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module Monad where
 
 import qualified Control.Lens as Lens
@@ -23,12 +27,10 @@ newtype Bot r m a = Bot { unBot :: Guts (Bot r m) m r a }
            MonadCont, MonadReader ((r (Bot r m)) -> Bot r m ()),
            MonadState s)
 
-type BotOutput = (Dir,BImage)
-
 data BotResponse m =
-    BotInit ((Game,HeroId) -> m ())
+    BotInit ((Game,HeroId,UTCTime) -> m ())
   -- ^ Bot is ready to be initialized
-  | BotMove BotOutput ((Game,HeroId) -> m ())
+  | BotMove Dir ((Game,HeroId,UTCTime) -> m ())
   -- ^ Bot asks for new state, providing some displayable information
   | BotFinish
   -- ^ Bot was terminated
@@ -52,22 +54,17 @@ runBot m =
     (error "interrupt before catch")
 
 -- | Yields an initialization request from a coroutine
-botInit :: (MonadBot m) => m (Game, HeroId)
+botInit :: (MonadBot m) => m (Game, HeroId, UTCTime)
 botInit = interrupt BotInit
 
--- | Yields @Dir@ adn debug information @dbg@ from a coroutine, return new Game
--- (and HeroId)
-botApplyMoveDbg :: (MonadBot m) => (Dir, BImage) -> m (Game, HeroId)
-botApplyMoveDbg (dir,dbg) = interrupt (BotMove (dir,dbg))
-
 -- | Yields @Dir@ from a coroutine, return new Game (and HeroId)
-botApplyMove :: (MonadBot m) => Dir -> m (Game, HeroId)
-botApplyMove dir = botApplyMoveDbg (dir,mempty)
+botApplyMove :: (MonadBot m) => Dir -> m (Game, HeroId, UTCTime)
+botApplyMove dir = interrupt (BotMove dir)
 
 
-data BotControl = forall a . BotControl {
-    botData :: a
-  , botMove :: forall m . (MonadIO m) => a -> Game -> HeroId -> m (Dir,BImage)
-  }
+-- data BotControl = forall a . BotControl {
+--     botData :: a
+--   , botMove :: forall m . (MonadIO m) => a -> Game -> HeroId -> m (Dir,BImage)
+--   }
 
 

@@ -5,7 +5,6 @@ module Perf where
 
 import Data.Map.Strict(Map)
 import qualified Data.Map.Strict as Map
-
 import qualified Data.Aeson as Aeson
 
 import System.CPUTime.Rdtsc
@@ -20,6 +19,8 @@ import Control.Monad.Trans
 import Control.Monad.Writer
 import GHC.IO (evaluate)
 import MA
+
+import Imports
 
 {-
 -- | Simple moving average
@@ -45,6 +46,11 @@ combineSMA a@(SMA v 1) b = meld b v
 combineSMA a b@(SMA v 1) = meld a v
 combineSMA _ _ = error "combineSMA: Only defined for singletons for now"
 -}
+
+diffTimeFrom :: (MonadIO m) => UTCTime -> m NominalDiffTime
+diffTimeFrom tstart = do
+  t <- liftIO $ getCurrentTime
+  return $ diffUTCTime t tstart
 
 type PerfCnt = Word64
 
@@ -77,16 +83,16 @@ create nm sta sto = do
   counter nm dt
   return ()
 
-set :: (MonadIO m) => String -> m a -> m a
-set nm m = do
+perf :: (MonadIO m) => String -> m a -> m a
+perf nm m = do
   t1 <- perfcnt
   a <- (liftIO . evaluate) =<< m
   t2 <- perfcnt
   create nm t1 t2
   return a
 
-set_ :: (MonadIO m) => String -> m a -> m ()
-set_ nm m = set nm m >> return ()
+perf_ :: (MonadIO m) => String -> m a -> m ()
+perf_ nm m = perf nm m >> return ()
 
 print :: (MonadIO m) => m ()
 print = liftIO $ do

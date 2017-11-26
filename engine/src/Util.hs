@@ -29,6 +29,11 @@ dumpGame tag GameId{..} nmove cs = liftIO $ do
   ByteString.writeFile (f++".tmp") (Aeson.encode (cs^.stateJSON))
   renameFile (f++".tmp") f
 
+removeGame :: (MonadIO m) => String -> GameId -> m ()
+removeGame tag GameId{..} = liftIO $ do
+  let gn = printf "game_%s.%s" (Text.unpack gameid) tag
+  removeDirectoryRecursive ("data" </> gn)
+
 dumpState :: (MonadIO m) => String -> GameId -> Integer -> ServerState -> m ()
 dumpState tag GameId{..} nmove cs = liftIO $ do
   let gn = printf "state_%s.%s" (Text.unpack gameid) tag
@@ -156,4 +161,11 @@ append (AppendHandle f h) t = liftIO $ hPutStrLn h (tunpack t) >> hFlush h
 
 evalRndM :: (MonadIO m) => RndT PureMT m a -> m a
 evalRndM m = liftIO newPureMT >>= evalRndT m
+
+whileM :: (Monad m) => m Bool -> m ()
+whileM m = do
+  x <- m
+  case x of
+    True -> whileM m
+    False -> return ()
 
