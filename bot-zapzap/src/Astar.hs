@@ -31,6 +31,10 @@ data Path = Path {
 pathLength :: Path -> Integer
 pathLength Path{..} = toInteger $ 1 + length p_path
 
+drawPosList :: [Pos] -> BImage
+drawPosList ps = HashMap.fromList $ ps`zip`(repeat "x ")
+
+
 drawPath :: Path -> BImage
 drawPath Path{..} = drawPosList p_path
 
