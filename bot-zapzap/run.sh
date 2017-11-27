@@ -5,7 +5,8 @@ while true ; do
   echo "Create './_stop' file to stop the bot gracefully"
 
   REV=`git rev-parse HEAD | cut -b '1-7'`
-  ./result/bin/vindinium-zapzap --tag="$REV" "$@"
+  NCM=`git rev-list --count HEAD | xargs printf "%04d"`
+  ./result/bin/vindinium-zapzap --tag="zapzap-$NCM-$REV" "$@"
 
   echo "Graceful pause"
   sleep 10
