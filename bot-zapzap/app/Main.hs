@@ -40,7 +40,7 @@ main = do
       when (not args_quiet) $ do
         clearTerminal
         out [ "Tag:", "'" <> tpack args_tag <> "'" ]
-        out [ "Hero:", g.>gameHeroes.(idx hid).heroName, "(" <> tshow hid <> ")" ]
+        out [ "Hero:", g.>gameHeroes.(idx hid).heroName, "(" <> printHero hid <> ")" ]
         blankLine
         out [ drawGame g [] ]
         out [ printHeroStats g ]
