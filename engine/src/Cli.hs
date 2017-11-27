@@ -67,7 +67,10 @@ heroColors = HashMap.fromList [
 
 heroColor hid = heroColors HashMap.! hid
 
-printTileC (HeroTile hid@(HeroId i)) = (heroColors HashMap.! hid) <> "@" <> (tpack $ show i) <> clrDef
+printHero :: HeroId -> Text
+printHero hid = (heroColors HashMap.! hid) <> "@" <> (tshow (hid_int hid)) <> clrDef
+
+printTileC (HeroTile hid) = printHero hid
 printTileC TavernTile = clrCyan <> "[]" <> clrDef
 printTileC (MineTile (Just hid@(HeroId i))) = (heroColors HashMap.! hid) <> "$" <> (tpack $ show i) <> clrDef
 printTileC x = printTile x
