@@ -77,53 +77,10 @@ loadBin nm = loadBinDef nm (error $ "Utils.loadBin: failed to load " <> nm)
 
 
 
-out :: (MonadIO m) => [Text] -> m ()
-out args = do
-  liftIO $ do
-    Text.putStrLn (Text.concat args)
-
-err :: (MonadIO m) => [Text] -> m ()
-err args = do
-  liftIO $ do
-    Text.hPutStrLn stderr (Text.concat args)
-
-clearTerminal :: (MonadIO m) => m ()
-clearTerminal = liftIO $ do
-  putStrLn "\027[2J"
-  putStrLn "\027[1;1H"
-
-
-
 findMaps :: (MonadIO m) => m [FilePath]
 findMaps = liftIO $ do
   let d = "data"
   map (</> "000.json") <$> map (d </>) <$> filter ("game"`isPrefixOf`) <$> getDirectoryContents d
 
-
-listMaps :: Maybe [FilePath] -> IO ()
-listMaps mgs = do
-  hSetBuffering stdin NoBuffering
-  let d = "data"
-  gs <-
-    case mgs of
-      Just x -> return x
-      Nothing -> do
-        map (</> "000.json") <$> map (d </>) <$> filter ("game"`isPrefixOf`) <$> getDirectoryContents d
-  let imax = length gs
-
-  flip evalStateT (0::Int) $ do
-    forever $ do
-      i <- get
-      i' <- liftIO getChar >>= return . \case
-        'j' -> (i+1)`min`(imax-1)
-        'k' -> (i-1)`max`0
-        _ -> i
-      put i'
-
-      let fn = gs !! i'
-      ss <- loadState fn
-      clearTerminal
-      out [ tpack fn <> " " <> tshow i' <> " of " <> tshow imax ]
-      out [printGame (ss.>stateGame)]
 
 

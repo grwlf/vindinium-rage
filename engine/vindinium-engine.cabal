@@ -49,6 +49,7 @@ library
                        Util
                        Driver
                        Args
+                       Cli
 
   hs-source-dirs:      src,lib
   default-language:    Haskell2010

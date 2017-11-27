@@ -64,7 +64,7 @@ controller_threaded botWarmup botMove = do
             botMove bs g hid0 bot_channel
           )
           (\(e::SomeException) -> do
-            out [ "Exception '" <> tshow e <> "' from botMove function" ]
+            Text.hPutStrLn stderr $ "Exception '" <> tshow e <> "' from botMove function"
           )
         putMVar bot_finished ()
 
@@ -166,10 +166,6 @@ driver_net key Args{..} bot =
           BotInit k -> return k
           _ -> fail "driver_net: expected BotInit"
 
-      out [ "Starting Vindinium bot, training: " <> tshow args_training <> " " <>
-            "Tag " <> tpack args_tag
-          ]
-
       {- Initial state query -}
       ss0 <- (case args_training > 0 of
               False -> startArena
@@ -193,14 +189,6 @@ driver_net key Args{..} bot =
         tstart <- use s_tstart
         ss <- use s_server
         bot <- use s_bot
-
-        when (not args_quiet) $ do
-          clearTerminal
-          out [ tpack args_tag ]
-          out [ view stateViewUrl ss ]
-          out [ drawGame' (ss.>stateGame) [] ]
-          out ["Me ", tshow (ss.>stateHero.heroId)]
-          out [ printHeroStats (ss.>stateGame) ]
 
         do
           i <- use s_nmove
@@ -275,12 +263,6 @@ driver_sim file ctl = do
     g   <- use ds_g
     hid <- use ds_hid
     bot <- use (ds_ctl.(idx hid))
-
-    when (hid == HeroId 1) $ do
-      dbg <- toList <$> use ds_dbg
-      clearTerminal
-      out [ drawGame' g dbg ]
-      err [ printHeroStats g ]
 
     tstart <- liftIO $ getCurrentTime
     r <- lift $ runBot $ bot (g,hid,tstart)
