@@ -13,7 +13,6 @@ import qualified Data.Text.IO as Text
 import System.IO
 import Imports
 import Types
-import Perf
 
 dateString :: IO String
 dateString = do
@@ -40,15 +39,6 @@ dumpState tag GameId{..} nmove cs = liftIO $ do
   let f = "data" </> gn </> (printf "%03d.json" nmove)
   createDirectoryIfMissing True ("data" </> gn)
   ByteString.writeFile (f++".tmp") (Aeson.encode (cs^.stateJSON))
-  renameFile (f++".tmp") f
-
-dumpPerf :: (MonadIO m) => String -> GameId -> m ()
-dumpPerf tag GameId{..} = liftIO $ do
-  let gn = printf "perf_%s.%s" (Text.unpack gameid) tag
-  let f = "data" </> gn </> "perf.txt"
-  createDirectoryIfMissing True ("data" </> gn)
-  perftext <- Perf.report
-  writeFile (f++".tmp") perftext
   renameFile (f++".tmp") f
 
 loadState :: (MonadIO m) => FilePath -> m ServerState
@@ -136,36 +126,4 @@ listMaps mgs = do
       out [ tpack fn <> " " <> tshow i' <> " of " <> tshow imax ]
       out [printGame (ss.>stateGame)]
 
-
-estimate1Sec :: (MonadIO m) => m (MVar PerfCnt)
-estimate1Sec = liftIO $ do
-  ans <- newEmptyMVar
-  forkIO $ do
-    forever $ do
-      t1 <- perfcnt
-      threadDelay (10^6)
-      t2 <- perfcnt
-      Perf.create "sleep1" t1 t2
-      tryPutMVar ans (t2-t1)
-  return ans
-
-data AppendHandle = AppendHandle FilePath Handle
-
-appendHandle :: (MonadIO m) => FilePath -> m AppendHandle
-appendHandle f =
-  AppendHandle ("data"</>f) <$> (liftIO $ openFile ("data"</>f) AppendMode)
-
-append :: (MonadIO m) => AppendHandle -> Text -> m ()
-append (AppendHandle f h) t = liftIO $ hPutStrLn h (tunpack t) >> hFlush h
-
-
-evalRndM :: (MonadIO m) => RndT PureMT m a -> m a
-evalRndM m = liftIO newPureMT >>= evalRndT m
-
-whileM :: (Monad m) => m Bool -> m ()
-whileM m = do
-  x <- m
-  case x of
-    True -> whileM m
-    False -> return ()
 

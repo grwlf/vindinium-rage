@@ -17,7 +17,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import qualified Data.List as List
 import Imports
-import Perf
 
 type BImage = HashMap Pos Text
 

@@ -14,7 +14,6 @@ import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as ByteStringL
 import qualified Data.Aeson as Aeson
 import qualified Control.Lens as Lens
-import Control.Monad.Rnd
 
 import Imports
 import Types
@@ -28,7 +27,6 @@ class (MonadIO m, MonadReader Settings m) => Client m
 
 instance (MonadIO m) => Client (ReaderT Settings m)
 instance (Client m) => Client (StateT s m)
-instance (Client m) => Client (Break r m)
 instance (Client m) => Client (ContT x m)
 
 request :: (Client m) => Text -> Aeson.Value -> m ServerState
