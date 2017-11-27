@@ -25,6 +25,13 @@ err :: (MonadIO m) => [Text] -> m ()
 err args = liftIO $ do
   Text.hPutStrLn stderr (Text.unwords args)
 
+-- | Board Image is a collection of symbols to be printed on the board in
+-- certain positions
+type BImage = HashMap Pos (Either Text Text)
+
+emptyBImage :: BImage
+emptyBImage = mempty
+
 drawBoard :: Board -> [BImage] -> Text
 drawBoard Board{..} maps =
   foldl (<>)
@@ -39,10 +46,12 @@ drawBoard Board{..} maps =
         p = Pos x y
         t = (_bo_tiles HashMap.! p)
         def = printTileC t
+        def_ = printTile t
       in
-      case t of
-        HeroTile _ -> def
-        _ -> fromMaybe def $ msum (map (HashMap.lookup p) maps)
+      case (t, fromMaybe (Right def) $ msum (map (HashMap.lookup p) maps)) of
+        (HeroTile _, _) -> def
+        (_, Right new) -> new
+        (_, Left clr) -> clr <> def_ <> clrDef
 
 printBoard b = drawBoard b []
 
@@ -52,13 +61,16 @@ clearTerminal = liftIO $ do
   putStrLn "\027[2J"
   putStrLn "\027[1;1H"
 
-clrDef = "\027[39m"
+clrDef = "\027[39;49m"
 clrGreen = "\027[32m"
 clrLGreen = "\027[92m"
 clrCyan = "\027[36m"
 clrBlue = "\027[34m"
 clrRed =  "\027[31m"
 clrYellow = "\027[33m"
+
+clrDef_White :: Text
+clrDef_White = "\027[39;47m"
 
 heroColors = HashMap.fromList [
   (HeroId 1,clrRed),
@@ -110,7 +122,7 @@ drawGame g xs = drawBoard (g.>gameBoard) xs
 -- | Let the user iterate through game records. Optional list of games @mgs@.
 -- Default location will be used if Nothing.
 -- Executes @exec@ when user press Enter
-drawGameFinder :: FilePath -> Maybe [FilePath] -> (ServerState -> IO ()) -> IO ()
+drawGameFinder :: FilePath -> Maybe [FilePath] -> (GameState -> IO ()) -> IO ()
 drawGameFinder data_dir mgs execfunc = do
   hSetBuffering stdin NoBuffering
   let d = data_dir

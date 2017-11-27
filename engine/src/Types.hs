@@ -303,13 +303,6 @@ parseBoard s t =
       p %= const ( if | posX == s-1 -> Pos 0 (posY+1)
                       | otherwise -> Pos (posX+1) posY )
 
--- | Board Image is a collection of symbols to be printed on the board in
--- certain positions
-type BImage = HashMap Pos Text
-
-emptyBImage :: BImage
-emptyBImage = mempty
-
 newtype GameId = GameId { gameid :: Text }
     deriving (Show, Read, Eq, Ord)
 
@@ -323,7 +316,7 @@ data Game = Game {
   , _gameHeroes   :: HashMap HeroId Hero
   , _gameBoard    :: !Board
   , _gameFinished :: Bool
-} deriving (Show, Read, Eq)
+  } deriving (Show, Read, Eq)
 
 $(makeLenses ''Game)
 
@@ -436,26 +429,27 @@ gameSetHero g hid p =
   Lens.set (gameBoard.bo_tiles.(idx (h.>heroPos))) FreeTile $
   Lens.set (gameBoard.bo_tiles.(idx p)) (HeroTile (h.>heroId)) g
 
-data ServerState = ServerState {
+data GameState = GameState {
     _stateGame    :: !Game
   , _stateHero    :: !Hero
   , _stateToken   :: Text
   , _stateViewUrl :: Text
   , _statePlayUrl :: Text
   , _stateJSON    :: Aeson.Value
-} deriving (Read, Show)
+  } deriving (Read, Show)
 
-$(makeLenses ''ServerState)
+$(makeLenses ''GameState)
 
-instance FromJSON ServerState where
-    parseJSON (Aeson.Object o) = ServerState <$> o .: "game"
-                                 <*> o .: "hero"
-                                 <*> o .: "token"
-                                 <*> o .: "viewUrl"
-                                 <*> o .: "playUrl"
-                                 <*> pure (Aeson.Object o)
+instance FromJSON GameState where
+    parseJSON (Aeson.Object o) =
+      GameState
+        <$> o .: "game"
+        <*> o .: "hero"
+        <*> o .: "token"
+        <*> o .: "viewUrl"
+        <*> o .: "playUrl"
+        <*> pure (Aeson.Object o)
     parseJSON _ = mzero
-
 
 
 class Accessible s a | s -> a where

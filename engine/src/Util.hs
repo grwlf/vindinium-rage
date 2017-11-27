@@ -20,20 +20,25 @@ dateString = do
   let (y, m, d) = toGregorian (utctDay t)
   return $ printf "%d-%02d-%02d-%s" y m d (show $ utctDayTime t)
 
-dumpGame :: (MonadIO m) => String -> GameId -> HeroId -> Integer -> ServerState -> m ()
-dumpGame tag GameId{..} hid nmove ss = liftIO $ do
-  let gn = printf "game_%s.%s-%d" tag (Text.unpack gameid) (hid_int hid)
+dumpGame :: (MonadIO m) => String -> GameState -> m ()
+dumpGame tag gs = liftIO $ do
+  let nmove = (gs.>stateGame.gameTurn `div` 4)
+  let gid = gameid (gs.>stateGame.gameId)
+  let hid = gs.>stateHero.heroId
+  let gn = printf "game_%s.%s-%d" tag (Text.unpack gid) (hid_int hid)
   let f = "data" </> gn </> (printf "%04d.json" nmove)
   createDirectoryIfMissing True ("data" </> gn)
-  ByteString.writeFile (f++".tmp") (Aeson.encode (ss^.stateJSON))
+  ByteString.writeFile (f++".tmp") (Aeson.encode (gs^.stateJSON))
   renameFile (f++".tmp") f
 
 removeGame :: (MonadIO m) => String -> GameId -> HeroId -> m ()
-removeGame tag GameId{..} hid = liftIO $ do
-  let gn = printf "game_%s.%s-%d" tag (Text.unpack gameid) (hid_int hid)
+removeGame tag gid hid = liftIO $ do
+  let gn = printf "game_%s.%s-%d" tag
+            (Text.unpack $ gameid gid)
+            (hid_int hid)
   removeDirectoryRecursive ("data" </> gn)
 
-dumpState :: (MonadIO m) => String -> GameId -> HeroId -> Integer -> ServerState -> m ()
+dumpState :: (MonadIO m) => String -> GameId -> HeroId -> Integer -> GameState -> m ()
 dumpState tag GameId{..} hid nmove ss = liftIO $ do
   let gn = printf "state_%s.%s-%d" tag (Text.unpack gameid) (hid_int hid)
   let f = "data" </> gn </> (printf "%04d.json" nmove)
@@ -41,7 +46,7 @@ dumpState tag GameId{..} hid nmove ss = liftIO $ do
   ByteString.writeFile (f++".tmp") (Aeson.encode (ss^.stateJSON))
   renameFile (f++".tmp") f
 
-loadState :: (MonadIO m) => FilePath -> m ServerState
+loadState :: (MonadIO m) => FilePath -> m GameState
 loadState f = liftIO $ do
   -- let f = "data" </> "hstates" </> nm
   fromMaybe (error $ "Faield to decode state " ++ f) <$> Aeson.decode <$> ByteString.readFile f

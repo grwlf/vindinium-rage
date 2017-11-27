@@ -165,10 +165,17 @@ diffTimeFrom tstart = do
 
 {- Control -}
 
-whileM :: (Monad m) => m Bool -> m ()
-whileM m = do
+whileM_ :: (Monad m) => m Bool -> m ()
+whileM_ m = do
   x <- m
   case x of
-    True -> whileM m
+    True -> whileM_ m
     False -> return ()
+
+whileM :: (Monad m) => m (Maybe x) -> m x
+whileM m = do
+  mb_x <- m
+  case mb_x of
+    Nothing -> whileM m
+    Just x -> return x
 

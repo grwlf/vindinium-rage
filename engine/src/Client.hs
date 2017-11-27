@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -17,13 +18,14 @@ import qualified Control.Lens as Lens
 
 import Imports
 import Types
+import Cli(err)
 
 data Settings = Settings {
     settingsKey :: Key
   , settingsUrl :: Text
 } deriving (Show, Eq)
 
-request :: (MonadIO m) => Settings -> Text -> Aeson.Value -> m ServerState
+request :: (MonadIO m) => Settings -> Text -> Aeson.Value -> m (Maybe GameState)
 request Settings{..} url val =
   let
     decodeBody body = either err id (Aeson.eitherDecodeStrict $ ByteStringL.toStrict body) where
@@ -46,24 +48,34 @@ request Settings{..} url val =
               , requestBody = (RequestBodyLBS . Aeson.encode) (injectKey val settingsKey)
               , responseTimeout = responseTimeoutNone
               }
-  liftIO $ withManager defaultManagerSettings $ \mgr -> do
-    bs <- responseBody <$> httpLbs req mgr
-    st' <- pure $ decodeBody bs
-    return st'
+  liftIO $ do
+    handle
+      (\(e :: SomeException) ->
+        do
+          err [ "Got an exception:", tshow e ]
+          return Nothing
+      )
+      (do
+        withManager defaultManagerSettings $ \mgr -> do
+          bs <- responseBody <$> httpLbs req mgr
+          st' <- pure $ decodeBody bs
+          return (Just st')
+      )
 
-startTraining :: (MonadIO m) => Settings -> Maybe Integer -> Maybe Board -> m ServerState
+startTraining :: (MonadIO m) => Settings -> Maybe Integer -> Maybe Board -> m GameState
 startTraining ss mi mb = do
-    url <- pure $ startUrl ss "training"
+  url <- pure $ startUrl ss "training"
+  fromMaybe (error "startTraining failed") <$> do
     request ss url (Aeson.object ( maybe [] (\i -> [("turns", toJSON i)]) mi
                        <> maybe [] (\b -> [("map",  toJSON b)]) mb))
 
-applyMove :: (MonadIO m) => Settings -> ServerState -> Dir -> m ServerState
+applyMove :: (MonadIO m) => Settings -> GameState -> Dir -> m (Maybe GameState)
 applyMove ss s d = request ss (s^.statePlayUrl) (Aeson.object [("dir", toJSON d)])
 
-startArena :: (MonadIO m) => Settings -> m ServerState
+startArena :: (MonadIO m) => Settings -> m GameState
 startArena ss = do
-    url <- pure $ startUrl ss "arena"
-    request ss url (Aeson.object [])
+  url <- pure $ startUrl ss "arena"
+  fromMaybe (error "startArena failed") <$> request ss url (Aeson.object [])
 
 startUrl :: Settings -> Text -> Text
 startUrl ss v = (settingsUrl ss) <> "/api/" <> v

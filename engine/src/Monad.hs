@@ -41,9 +41,9 @@ newtype Bot r m a = Bot { unBot :: Guts (Bot r m) m r a }
            MonadState s)
 
 data BotResponse m =
-    BotInit ((Game,HeroId,UTCTime) -> m ())
+    BotInit ((GameState,UTCTime) -> m ())
   -- ^ Bot is ready to be initialized
-  | BotMove Dir ((Game,HeroId,UTCTime) -> m ())
+  | BotMove Dir ((GameState,UTCTime) -> m ())
   -- ^ Bot asks for new state, providing some displayable information
   | BotFinish
   -- ^ Bot was terminated
@@ -63,10 +63,14 @@ runBot m =
     (error "interrupt before install")
 
 -- | Yields an initialization request from a coroutine
-botInit :: (MonadBot m) => m (Game, HeroId, UTCTime)
+botInit :: (MonadBot m) => m (GameState, UTCTime)
 botInit = interrupt BotInit
 
 -- | Yields @Dir@ from a coroutine, return new Game (and HeroId)
-botApplyMove :: (MonadBot m) => Dir -> m (Game, HeroId, UTCTime)
+botApplyMove :: (MonadBot m) => Dir -> m (GameState, UTCTime)
 botApplyMove dir = interrupt (BotMove dir)
+
+
+botFinish :: (MonadBot m) => m ()
+botFinish = interrupt (const BotFinish)
 
