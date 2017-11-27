@@ -5,11 +5,15 @@ module Main where
 import Options.Applicative
 import System.Exit
 
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.PQueue.Prio.Max as MaxPQueue
+
 import Imports
 import Types
 import Driver
 import Brain
 import Cli
+import Util
 
 
 data Args = Args {
@@ -44,7 +48,7 @@ main = do
 
       out [ "Starting replay mode" ]
 
-      drawGameFinder args_replay Nothing $ \ss -> do
+      drawGameFinder args_replay Nothing $ \gs -> do
         out ["DEBUG HERE"]
         return ()
 
@@ -56,15 +60,36 @@ main = do
 
       driver_net (Key "vhkdc75e") args_ds $ do
 
-        controller_threaded warmupIO $ \bs g hid chan -> do
+        controller_threaded warmupIO $ \bs gs chan ->
+          let
+            g = gs.>stateGame
+            h = gs.>stateHero
+          in do
+          case g.>gameFinished of
+            False -> do
 
-          moveIO bs g hid chan
+              dumpGame ds_tag gs
 
-          when (not ds_quiet) $ do
-            clearTerminal
-            out [ "Tag:", "'" <> tpack ds_tag <> "'" ]
-            out [ "Hero:", g.>gameHeroes.(idx hid).heroName, "(" <> printHero hid <> ")" ]
-            blankLine
-            out [ drawGame g [] ]
-            out [ printHeroStats g ]
+              plans <- moveIO bs gs chan
+
+              when (not ds_quiet) $
+                let
+
+                  bimg = HashMap.fromList $
+                    flip map (take 5 $ MaxPQueue.toList plans) $ \(rew,Plan{..}) ->
+                      (goPos, Left clrDef_White)
+
+                in do
+                clearTerminal
+                out [ "Tag:", "'" <> tpack ds_tag <> "'" ]
+                out [ "Hero:", h.>heroName,
+                      "(" <> printHero (h.>heroId) <> ")" ]
+                blankLine
+                out [ drawGame g [bimg] ]
+                out [ printHeroStats g ]
+
+            True -> do
+              {- Remove game dump -}
+              when (not ds_dump_game) $ do
+                removeGame ds_tag (gs.>stateGame.gameId) (gs.>stateHero.heroId)
 

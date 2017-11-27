@@ -21,6 +21,7 @@ import Types
 import Imports
 import Voronoy
 import Astar
+import Cli
 
 -- type Length = Integer
 type Reward = Rational
@@ -113,7 +114,7 @@ gameRewardRel g hh evts =
 
 gameReward = gameRewardAbs
 
-drawPath :: Path -> HashMap Pos Text
+drawPath :: Path -> BImage
 drawPath Path{..} = drawPosList p_path
 
 data Plan = Plan {
@@ -133,7 +134,7 @@ planStep p Plan{..} =
     (p':ps) -> posDiff p p'
     [] -> posDiff p goPos
 
-bimagePlan :: Plan -> HashMap Pos Text
+bimagePlan :: Plan -> BImage
 bimagePlan Plan{..} = drawPosList goPath -- <> (hmap1 goPos "X ")
 
 
@@ -280,14 +281,16 @@ drinkPlans g h clt = foldl f mempty (nearestTaverns g h clt) where
     in
     MaxPQueue.insert rew pl mpq
 
-passPlan :: Game -> Hero -> Plan
-passPlan g h =
+passPlans :: Game -> Hero -> PlanQueue
+passPlans g h =
   let
     hid = h.>heroId
     hl = h.>heroLife
+    rew = gameReward g h (HashMap.fromList [(hid, (Time 1, zeroWealthEvt))])
   in
-  Plan (h.>heroPos) [] (HeroTile (h.>heroId)) $
-    gameReward g h (HashMap.fromList [(hid, (Time 1, zeroWealthEvt))])
+  MaxPQueue.singleton rew $
+    Plan (h.>heroPos) [] (HeroTile (h.>heroId)) rew
+
 
 data Bot = Bot {
     bot_clm :: !(ClusterMap Mines)
@@ -302,35 +305,41 @@ warmup g =
   in
   Bot cm ct
 
+pmax :: (Ord k) => MaxPQueue k a -> Maybe a
+pmax q = fmap fst $ MaxPQueue.maxView q
+
+pmin :: (Ord k) => MinPQueue k a -> Maybe a
+pmin q = fmap fst $ MinPQueue.minView q
+
+type PlanQueue = MaxPQueue Reward Plan
 
 data Plans = Plans {
-    killPlan :: Maybe Plan
-  , capturePlan :: Maybe Plan
-  , drinkPlan :: Maybe Plan
+    plans_kill :: PlanQueue
+  , plans_capture :: PlanQueue
+  , plans_drink :: PlanQueue
+  , plans_pass :: PlanQueue
   }
+
 
 think :: Bot -> Game -> HeroId -> Plans
 think Bot{..} g hid = Plans{..} where
   h = g^.gameHeroes.(idx hid)
-
   clm = bot_clm
   clt = bot_clt
+  plans_kill = killPlans g h clt
+  plans_capture = capturePlans g h clm
+  plans_drink = drinkPlans g h clt
+  plans_pass = passPlans g h
 
-  killPlan = fmap fst $ MaxPQueue.maxView $ killPlans g h clt
-  capturePlan = fmap fst $ MaxPQueue.maxView $ capturePlans g h clm
-  drinkPlan = fmap fst $ MaxPQueue.maxView $ drinkPlans g h clt
 
-
-move :: (Monad m) =>  Bot -> Game -> HeroId -> m Dir
+move :: (Monad m) =>  Bot -> Game -> HeroId -> m (Dir, PlanQueue)
 move bot@Bot{..} g hid =
   let
     h = g^.gameHeroes.(idx hid)
 
     Plans{..} = think bot g hid
 
-    allplans =
-      MaxPQueue.fromList $ map (goReward &&& id) $
-        catMaybes [killPlan , capturePlan , drinkPlan, Just (passPlan g h)]
+    allplans = plans_kill <>  plans_capture <> plans_drink <> plans_pass
 
     nearTavern =
         boardAdjascent
@@ -340,69 +349,51 @@ move bot@Bot{..} g hid =
     needHealing =
       ((h.>heroLife) < 90) && ((h.>heroGold) > 4)
 
-    plan = MaxPQueue.maxView allplans
+    plan = pmax allplans
 
     planDesc =
       case plan of
-        Just (p,_) -> ("PLAN " <> tunpack (printTile (goTile p)) <> " " <> show (goPos p))
+        Just p -> ("PLAN " <> tunpack (printTile (goTile p)) <> " " <> show (goPos p))
         Nothing -> "NOPLAN"
 
   in do
   case (nearTavern, needHealing)  of
     (Just tp, True) ->
       trace ("AUTODRINK, " <> planDesc) $
-      return (posDiff (h.>heroPos) tp)
+      return (posDiff (h.>heroPos) tp, allplans)
     _ ->
       case plan of
-        Just (p,_) ->
+        Just p ->
           trace ("BUSY, " <> planDesc) $
-          return (planStep (h.>heroPos) p)
+          return (planStep (h.>heroPos) p, allplans)
         Nothing ->
           trace ("WANDER, " <> planDesc) $
-          return South
-
-moveKbdPlans :: (MonadIO m) =>  Bot -> Game -> HeroId -> m Dir
-moveKbdPlans bot@Bot{..} g hid =
-  let
-    h = g^.gameHeroes.(idx hid)
-
-    Plans{..} = think bot g hid
-  in do
-
-  plan <- liftIO getChar >>= return . \case
-    'j' -> killPlan
-    'k' -> capturePlan
-    'l' -> drinkPlan
-    _ -> Nothing
-
-  return $
-    (case plan of
-      Just pl -> planStep (h.>heroPos) pl
-      Nothing -> Stay
-    )
+          return (South, allplans)
 
 
 data BotIO = BotIO {
     bot_clust :: !(MVar Bot)
   }
 
-warmupIO :: Game -> IO BotIO
+warmupIO :: GameState -> IO BotIO
 warmupIO g = do
   mv <- newEmptyMVar
   forkIO $ do
     {- shallow compute cm and ct -}
     putMVar mv =<< do
-      evaluate $ force $ warmup g
+      evaluate $ force $ warmup (g.>stateGame)
 
   return $ BotIO mv
 
 
-moveIO :: BotIO -> Game -> HeroId -> TChan (Dir,BotIO) ->  IO ()
-moveIO bs@BotIO{..} g hid chan = do
+moveIO :: BotIO -> GameState -> TChan (Dir,BotIO) -> IO PlanQueue
+moveIO bs@BotIO{..} gs chan = do
   liftIO (tryReadMVar bot_clust) >>= \case
     Just b -> do
-      dir <- force <$> move b g hid
-      atomically (writeTChan chan (dir, bs))
+      (dir,plans) <- move b (gs.>stateGame) (gs.>stateHero.heroId)
+      atomically (writeTChan chan (force dir, bs))
+      return plans
     Nothing -> do
       atomically (writeTChan chan (Stay, bs))
+      return MaxPQueue.empty
 

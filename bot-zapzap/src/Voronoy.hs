@@ -118,7 +118,7 @@ initState b seed =
 build :: Board -> HashMap Pos Node -> State
 build b seed =
   flip execState (initState b seed) $ do
-  whileM $ do
+  whileM_ $ do
     s <- get
 
     case (all (List.null) (s^.s_frontier)) of

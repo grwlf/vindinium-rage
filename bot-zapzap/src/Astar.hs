@@ -22,6 +22,7 @@ import Data.Graph.AStar
 import Imports
 import Types
 import Voronoy
+import Cli
 
 data Path = Path {
     p_pos :: Pos
@@ -32,7 +33,7 @@ pathLength :: Path -> Integer
 pathLength Path{..} = toInteger $ 1 + length p_path
 
 drawPosList :: [Pos] -> BImage
-drawPosList ps = HashMap.fromList $ ps`zip`(repeat "x ")
+drawPosList ps = HashMap.fromList $ ps`zip`(repeat (Right "x "))
 
 
 drawPath :: Path -> BImage
