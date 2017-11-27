@@ -13,9 +13,8 @@ import Util
 import Imports
 import Types
 
-
--- class BoardImage a where
---   bimage :: a -> BImage
+blankLine :: (MonadIO m) => m ()
+blankLine = out []
 
 out :: (MonadIO m) => [Text] -> m ()
 out args = liftIO $ do
@@ -38,14 +37,11 @@ drawBoard Board{..} maps =
       let
         p = Pos x y
         t = (_bo_tiles HashMap.! p)
-        def = printTile t
+        def = printTileC t
       in
       case t of
         HeroTile _ -> def
         _ -> fromMaybe def $ msum (map (HashMap.lookup p) maps)
-
--- drawBoard :: Board -> [BImage] -> Text
--- drawBoard b l = drawBoard' b l
 
 printBoard b = drawBoard b []
 
