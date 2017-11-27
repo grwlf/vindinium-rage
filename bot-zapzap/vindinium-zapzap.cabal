@@ -18,7 +18,6 @@ executable vindinium-zapzap
                        unix,
                        aeson,
                        bytestring,
-                       rdtsc,
                        binary,
                        vindinium-engine,
                        lens,
@@ -26,6 +25,5 @@ executable vindinium-zapzap
                        psqueues,
                        hashable,
                        pqueue,
-                       deepseq,
-                       gitrev
+                       deepseq
 

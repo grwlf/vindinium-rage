@@ -18,7 +18,6 @@ import qualified Data.HashSet as HashSet
 import qualified Data.Map.Strict as Map
 
 import Types
-import Perf
 import Imports
 import Voronoy
 import Astar
@@ -389,12 +388,11 @@ data BotIO = BotIO {
 
 warmupIO :: Game -> IO BotIO
 warmupIO g = do
-  mv <- liftIO $ newEmptyMVar
-  liftIO $ forkIO $ do
+  mv <- newEmptyMVar
+  forkIO $ do
     {- shallow compute cm and ct -}
-    perf "warmup" $ do
-      putMVar mv =<< do
-        evaluate $ force $ warmup g
+    putMVar mv =<< do
+      evaluate $ force $ warmup g
 
   return $ BotIO mv
 

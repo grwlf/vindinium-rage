@@ -6,17 +6,19 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Voronoy where
 
+import Prelude hiding (break,print)
+import Data.Char
+
+import qualified Data.Map.Lazy as MapL
 import qualified Data.List as List
 import Data.HashMap.Strict(HashMap,(!))
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Control.Monad.State.Strict as S
+
 import Imports hiding(State,(!))
 import Types hiding (State)
-import Prelude hiding (break,print)
-import Data.Char
 
-import qualified Data.Map.Lazy as MapL
 
 -- | Game location, a tavern or a mine
 data Goal = Goal {
@@ -112,42 +114,46 @@ initState b seed =
   in
   State seed vor frnt 0 conn sqs b
 
--- | Build Voronoy graph for interesting points of Board @b@
+-- | Build Voronoy graph for interesting points of `Board` @b@
 build :: Board -> HashMap Pos Node -> State
 build b seed =
   flip execState (initState b seed) $ do
-  loop $ do
+  whileM $ do
     s <- get
 
-    when (all (List.null) (s^.s_frontier)) $ do
-      break()
+    case (all (List.null) (s^.s_frontier)) of
+      True -> return False {- break -}
 
-    forM_ (s^.s_nodes) $ \n -> do
-      let f = (s^.s_frontier) HashMap.! n
-      f' <- do
-        List.concat <$> do
-        forM f $ \p -> do
-          List.concat <$> do
-          forM (toList (boardAdjascentAvail p b)) $ \p' -> do
-            vor <- use s_vor
-            case HashMap.lookup p' vor of
-              Just (n'@Node{}, dist)
-                |n /= n' -> do
-                  let d = (dist+s^.s_dist)
-                  s_conn %=
-                    HashMap.insertWith (HashMap.unionWith min) n (HashMap.singleton n' d) .
-                    HashMap.insertWith (HashMap.unionWith min) n' (HashMap.singleton n d)
-                  return []
-                |otherwise ->
-                  return []
-              Nothing -> do
-                s_vor %= HashMap.insert p' (n, s^.s_dist+1)
-                s_square %= HashMap.insertWith (+) n 1
-                -- when (n^.n_center == Pos 3 22) $ do
-                --   traceM ("added", p')
-                return [p']
-      s_frontier %= HashMap.insert n (f')
-    s_dist %= (+1)
+      False -> do
+        forM_ (s^.s_nodes) $ \n ->
+          let
+            f = (s^.s_frontier) HashMap.! n
+          in do
+          f' <- do
+            List.concat <$> do
+            forM f $ \p -> do
+              List.concat <$> do
+              forM (toList (boardAdjascentAvail p b)) $ \p' -> do
+                vor <- use s_vor
+                case HashMap.lookup p' vor of
+                  Just (n'@Node{}, dist)
+                    |n /= n' -> do
+                      let d = (dist+s^.s_dist)
+                      s_conn %=
+                        HashMap.insertWith (HashMap.unionWith min) n (HashMap.singleton n' d) .
+                        HashMap.insertWith (HashMap.unionWith min) n' (HashMap.singleton n d)
+                      return []
+                    |otherwise ->
+                      return []
+                  Nothing -> do
+                    s_vor %= HashMap.insert p' (n, s^.s_dist+1)
+                    s_square %= HashMap.insertWith (+) n 1
+                    -- when (n^.n_center == Pos 3 22) $ do
+                    --   traceM ("added", p')
+                    return [p']
+          s_frontier %= HashMap.insert n (f')
+        s_dist %= (+1)
+        return True {- continue -}
 
 legend :: HashMap Pos (Node,Integer) -> HashMap Node Integer
 legend vor = HashMap.fromList $ (nub $ map fst (HashMap.elems vor))`zip`[0..]
