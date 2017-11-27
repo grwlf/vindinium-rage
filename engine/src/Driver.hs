@@ -192,7 +192,7 @@ driver_net key Args{..} bot =
 
         do
           i <- use s_nmove
-          dumpGame args_tag game_id i ss
+          dumpGame args_tag game_id hid i ss
 
         r <- lift $ runBot $ bot (ss.>stateGame, ss.>stateHero.heroId, tstart)
 
@@ -214,7 +214,7 @@ driver_net key Args{..} bot =
 
       {- Remove game record -}
       when (not args_dump_game) $ do
-        removeGame args_tag game_id
+        removeGame args_tag game_id hid
 
 data DriverSim_State m = DriverSim_State {
     _ds_g :: Game

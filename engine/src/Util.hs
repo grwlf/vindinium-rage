@@ -20,25 +20,25 @@ dateString = do
   let (y, m, d) = toGregorian (utctDay t)
   return $ printf "%d-%02d-%02d-%s" y m d (show $ utctDayTime t)
 
-dumpGame :: (MonadIO m) => String -> GameId -> Integer -> ServerState -> m ()
-dumpGame tag GameId{..} nmove cs = liftIO $ do
-  let gn = printf "game_%s.%s" tag (Text.unpack gameid)
+dumpGame :: (MonadIO m) => String -> GameId -> HeroId -> Integer -> ServerState -> m ()
+dumpGame tag GameId{..} hid nmove ss = liftIO $ do
+  let gn = printf "game_%s.%s-%d" tag (Text.unpack gameid) (hid_int hid)
   let f = "data" </> gn </> (printf "%03d.json" nmove)
   createDirectoryIfMissing True ("data" </> gn)
-  ByteString.writeFile (f++".tmp") (Aeson.encode (cs^.stateJSON))
+  ByteString.writeFile (f++".tmp") (Aeson.encode (ss^.stateJSON))
   renameFile (f++".tmp") f
 
-removeGame :: (MonadIO m) => String -> GameId -> m ()
-removeGame tag GameId{..} = liftIO $ do
-  let gn = printf "game_%s.%s" tag (Text.unpack gameid)
+removeGame :: (MonadIO m) => String -> GameId -> HeroId -> m ()
+removeGame tag GameId{..} hid = liftIO $ do
+  let gn = printf "game_%s.%s-%d" tag (Text.unpack gameid) (hid_int hid)
   removeDirectoryRecursive ("data" </> gn)
 
 dumpState :: (MonadIO m) => String -> GameId -> Integer -> ServerState -> m ()
-dumpState tag GameId{..} nmove cs = liftIO $ do
+dumpState tag GameId{..} nmove ss = liftIO $ do
   let gn = printf "state_%s.%s" tag (Text.unpack gameid)
   let f = "data" </> gn </> (printf "%03d.json" nmove)
   createDirectoryIfMissing True ("data" </> gn)
-  ByteString.writeFile (f++".tmp") (Aeson.encode (cs^.stateJSON))
+  ByteString.writeFile (f++".tmp") (Aeson.encode (ss^.stateJSON))
   renameFile (f++".tmp") f
 
 loadState :: (MonadIO m) => FilePath -> m ServerState
