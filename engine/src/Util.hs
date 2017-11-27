@@ -22,7 +22,7 @@ dateString = do
 
 dumpGame :: (MonadIO m) => String -> GameId -> Integer -> ServerState -> m ()
 dumpGame tag GameId{..} nmove cs = liftIO $ do
-  let gn = printf "game_%s.%s" (Text.unpack gameid) tag
+  let gn = printf "game_%s.%s" tag (Text.unpack gameid)
   let f = "data" </> gn </> (printf "%03d.json" nmove)
   createDirectoryIfMissing True ("data" </> gn)
   ByteString.writeFile (f++".tmp") (Aeson.encode (cs^.stateJSON))
@@ -30,12 +30,12 @@ dumpGame tag GameId{..} nmove cs = liftIO $ do
 
 removeGame :: (MonadIO m) => String -> GameId -> m ()
 removeGame tag GameId{..} = liftIO $ do
-  let gn = printf "game_%s.%s" (Text.unpack gameid) tag
+  let gn = printf "game_%s.%s" tag (Text.unpack gameid)
   removeDirectoryRecursive ("data" </> gn)
 
 dumpState :: (MonadIO m) => String -> GameId -> Integer -> ServerState -> m ()
 dumpState tag GameId{..} nmove cs = liftIO $ do
-  let gn = printf "state_%s.%s" (Text.unpack gameid) tag
+  let gn = printf "state_%s.%s" tag (Text.unpack gameid)
   let f = "data" </> gn </> (printf "%03d.json" nmove)
   createDirectoryIfMissing True ("data" </> gn)
   ByteString.writeFile (f++".tmp") (Aeson.encode (cs^.stateJSON))
@@ -74,7 +74,6 @@ loadBinDef nm def = liftIO $ do
 
 loadBin :: (MonadIO m, Binary a) => String -> m a
 loadBin nm = loadBinDef nm (error $ "Utils.loadBin: failed to load " <> nm)
-
 
 
 findMaps :: (MonadIO m) => m [FilePath]
