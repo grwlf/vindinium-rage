@@ -22,7 +22,9 @@ argsParser = Args
 
 getArgs = execParser (info (argsParser <**> helper) idm)
 
+main :: IO ()
 main = do
+
   args@Args{..} <- getArgs
 
   out [ "Starting Vindinium bot, training:", tshow args_training,
@@ -37,8 +39,9 @@ main = do
 
       when (not args_quiet) $ do
         clearTerminal
-        out [ "Tag", tpack args_tag ]
-        out [ "Hero", g.>gameHeroes.(idx hid).heroName, "(" <> tshow hid <> ")" ]
+        out [ "Tag:", "'" <> tpack args_tag <> "'" ]
+        out [ "Hero:", g.>gameHeroes.(idx hid).heroName, "(" <> tshow hid <> ")" ]
+        blankLine
         out [ drawGame g [] ]
         out [ printHeroStats g ]
 
