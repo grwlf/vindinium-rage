@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Cli where
@@ -106,29 +107,64 @@ printGame g = drawBoard (g.>gameBoard) []
 drawGame g xs = drawBoard (g.>gameBoard) xs
 
 
-listMaps :: Maybe [FilePath] -> IO ()
-listMaps mgs = do
+-- | Let the user iterate through game records. Optional list of games @mgs@.
+-- Default location will be used if Nothing.
+-- Executes @exec@ when user press Enter
+drawGameFinder :: FilePath -> Maybe [FilePath] -> (ServerState -> IO ()) -> IO ()
+drawGameFinder data_dir mgs execfunc = do
   hSetBuffering stdin NoBuffering
-  let d = "data"
+  let d = data_dir
   gs <-
     case mgs of
       Just x -> return x
       Nothing -> do
-        map (</> "000.json") <$> map (d </>) <$> filter ("game"`isPrefixOf`) <$> getDirectoryContents d
+        map (</> "%04d.json") <$> map (d </>) <$> filter ("game"`isPrefixOf`) <$> getDirectoryContents d
   let imax = length gs
+  flip evalStateT (0::Int, 0::Int) $
+    let
+      fn i j = printf (gs !! i) j
 
-  flip evalStateT (0::Int) $ do
+      display :: (MonadIO m) => (Int,Int) -> m ()
+      display (i,j) = do
+        ss <- loadState (fn i j)
+        clearTerminal
+        out [ printGame (ss.>stateGame) ]
+        blankLine
+        out [ tpack (fn i j), tshow i, "of", tshow imax ]
+        out [ "Use j/k to iterate through the games" ]
+        out [ "Use h/l to iterate through the game moves" ]
+        out [ "Use o to execute the decision maker" ]
+
+    in do
+    display (0,0)
     forever $ do
-      i <- get
-      i' <- liftIO getChar >>= return . \case
-        'j' -> (i+1)`min`(imax-1)
-        'k' -> (i-1)`max`0
-        _ -> i
-      put i'
+      (i,j) <- get
+      c <- liftIO getChar
+      (i',j') <- do
+        case c of
+          'j' -> return ((i+1)`min`(imax-1), 0)
+          'k' -> return ((i-1)`max`0, 0)
+          'h' -> return (i, j-1)
+          'l' -> return (i, j+1)
+          _ -> return (i,j)
 
-      let fn = gs !! i'
-      ss <- loadState fn
-      clearTerminal
-      out [ tpack fn <> " " <> tshow i' <> " of " <> tshow imax ]
-      out [printGame (ss.>stateGame)]
+      case c of
+        'o' -> liftIO $ do
+          ss <- loadState (fn i j)
+          execfunc ss
+
+        _ -> do
+          put =<< do
+            liftIO $ handle
+              (\(e :: SomeException) ->
+              do
+                Text.putStrLn $ "Got an exception: " <> tshow e
+                return (i,j)
+              )
+
+              (do
+                display (i',j')
+                return (i',j')
+              )
+
 

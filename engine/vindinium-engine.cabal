@@ -48,7 +48,6 @@ library
                        Monad
                        Util
                        Driver
-                       Args
                        Cli
 
   hs-source-dirs:      src,lib

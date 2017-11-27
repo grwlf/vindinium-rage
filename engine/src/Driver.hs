@@ -27,7 +27,6 @@ import Data.IORef
 import Imports
 import Types
 import Client
-import Args
 import Monad
 import Sim
 import Util
@@ -59,7 +58,7 @@ controller_threaded botWarmup botMove = do
 
       bot_channel <- liftIO newTChanIO
       bot_finished <- liftIO newEmptyMVar
-      handle <- liftIO $ forkIO $ do
+      thandle <- liftIO $ forkIO $ do
         catch (do
             botMove bs g hid0 bot_channel
           )
@@ -79,7 +78,7 @@ controller_threaded botWarmup botMove = do
             return False
 
           kill = do
-            liftIO $ killThread handle
+            liftIO $ killThread thandle
 
           delay = do
             liftIO $ threadDelay (10^4)
@@ -126,6 +125,17 @@ controller_simple2 botWarmup botMove = do
       traceM $ gameFindKiller g hid g'
       put g'
 
+
+-- | Command-line arguments
+data DriverSettings = DriverSettings {
+    ds_tag :: String
+  -- ^ Game tag, e.g. git revision
+  , ds_training :: Integer
+  , ds_dump_state :: Bool
+  , ds_dump_game :: Bool
+  , ds_quiet :: Bool
+  } deriving (Show, Eq)
+
 data DriverState m = DriverState {
     _s_quiet :: Bool
   -- ^ Quiet
@@ -136,7 +146,7 @@ data DriverState m = DriverState {
   , _s_bot :: ((Game,HeroId,UTCTime) -> m ())
   -- ^ Bot step function
   , _s_tag :: String
-  -- ^ See 'args_tag'
+  -- ^ See 'ds_tag'
   , _s_tstart :: UTCTime
   -- ^ Time when driver started the processing of last request
 }
@@ -148,11 +158,11 @@ $(makeLenses ''DriverState)
 -- | Network driver to play on the real competition server
 driver_net
   :: Key
-  -> Args
+  -> DriverSettings
   -> (forall m g . (MonadBot m, MonadIO m) => m ())
   -> IO ()
 
-driver_net key Args{..} bot =
+driver_net key DriverSettings{..} bot =
   let
     cls = Client.Settings key ("http://vindinium.org" :: Text)
   in do
@@ -162,9 +172,9 @@ driver_net key Args{..} bot =
         _ -> fail "driver_net: expected BotInit"
 
     {- Initial state query -}
-    ss0 <- (case args_training > 0 of
+    ss0 <- (case ds_training > 0 of
             False -> startArena cls
-            True -> startTraining cls (Just args_training) Nothing)
+            True -> startTraining cls (Just ds_training) Nothing)
 
     tstart0 <- liftIO getCurrentTime
 
@@ -174,10 +184,10 @@ driver_net key Args{..} bot =
     game_id <- pure (ss0.>stateGame.gameId)
     i <- pure 0
 
-    when args_dump_state $ do
-      dumpState args_tag game_id i ss0
+    when ds_dump_state $ do
+      dumpState ds_tag game_id hid i ss0
 
-    s_init <- pure $ initDriverState args_quiet ss0 i bot' args_tag tstart0
+    s_init <- pure $ initDriverState ds_quiet ss0 i bot' ds_tag tstart0
 
     handle
       (\(e :: SomeException) ->
@@ -194,7 +204,7 @@ driver_net key Args{..} bot =
 
         do
           i <- use s_nmove
-          dumpGame args_tag game_id hid i ss
+          dumpGame ds_tag game_id hid i ss
 
         r <- lift $ runBot $ bot (ss.>stateGame, ss.>stateHero.heroId, tstart)
 
@@ -210,14 +220,14 @@ driver_net key Args{..} bot =
             return True
 
           BotFinish -> do
-            when args_dump_state $ do
-              dumpState args_tag game_id i ss
+            when ds_dump_state $ do
+              dumpState ds_tag game_id hid i ss
             return False
       )
 
     {- Remove game dump -}
-    when (not args_dump_game) $ do
-      removeGame args_tag game_id hid
+    when (not ds_dump_game) $ do
+      removeGame ds_tag game_id hid
 
 data DriverSim_State m = DriverSim_State {
     _ds_g :: Game
