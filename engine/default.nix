@@ -103,6 +103,10 @@ let
           if test -f /etc/myprofile ; then
             . /etc/myprofile
           fi
+
+          if test -f profile.sh ; then
+            . profile.sh
+          fi
         '';
       }) {};
 
