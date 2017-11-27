@@ -156,34 +156,36 @@ driver_net key Args{..} bot =
   let
     cls = Client.Settings key ("http://vindinium.org" :: Text)
   in do
-  handle (\(e :: SomeException) -> do
-       Text.putStrLn $ "Got an exception: " <> tshow e) $
-    do
-    flip runReaderT cls $ do
+    {- Warmup -}
+    bot' <- runBot bot >>= \case
+        BotInit k -> return k
+        _ -> fail "driver_net: expected BotInit"
 
-      {- Warmup -}
-      bot' <- runBot bot >>= \case
-          BotInit k -> return k
-          _ -> fail "driver_net: expected BotInit"
+    {- Initial state query -}
+    ss0 <- (case args_training > 0 of
+            False -> startArena cls
+            True -> startTraining cls (Just args_training) Nothing)
 
-      {- Initial state query -}
-      ss0 <- (case args_training > 0 of
-              False -> startArena
-              True -> startTraining (Just args_training) Nothing)
+    tstart0 <- liftIO getCurrentTime
 
-      tstart0 <- liftIO getCurrentTime
+    {- Main loop -}
+    g0 <- pure (ss0.>stateGame)
+    hid <- pure (ss0.>stateHero.heroId)
+    game_id <- pure (ss0.>stateGame.gameId)
+    i <- pure 0
 
-      {- Main loop -}
-      g0 <- pure (ss0.>stateGame)
-      hid <- pure (ss0.>stateHero.heroId)
-      game_id <- pure (ss0.>stateGame.gameId)
-      i <- pure 0
+    when args_dump_state $ do
+      dumpState args_tag game_id i ss0
 
-      when args_dump_state $ do
-        dumpState args_tag game_id i ss0
+    s_init <- pure $ initDriverState args_quiet ss0 i bot' args_tag tstart0
 
-      s_init <- pure $ initDriverState args_quiet ss0 i bot' args_tag tstart0
+    handle
+      (\(e :: SomeException) ->
+        do
+          Text.putStrLn $ "Got an exception: " <> tshow e
+      )
 
+      (do
       flip evalStateT s_init $ do
       whileM $ do
         tstart <- use s_tstart
@@ -198,7 +200,7 @@ driver_net key Args{..} bot =
 
         case r of
           BotMove dir k -> do
-            ss' <- applyMove ss dir
+            ss' <- applyMove cls ss dir
             tstart' <- liftIO getCurrentTime
 
             s_server %= const ss'
@@ -211,10 +213,11 @@ driver_net key Args{..} bot =
             when args_dump_state $ do
               dumpState args_tag game_id i ss
             return False
+      )
 
-      {- Remove game record -}
-      when (not args_dump_game) $ do
-        removeGame args_tag game_id hid
+    {- Remove game dump -}
+    when (not args_dump_game) $ do
+      removeGame args_tag game_id hid
 
 data DriverSim_State m = DriverSim_State {
     _ds_g :: Game
