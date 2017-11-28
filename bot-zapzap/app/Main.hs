@@ -7,6 +7,7 @@ import Options.Applicative
 import System.Exit
 
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Text as Text
 import qualified Data.PQueue.Prio.Max as MaxPQueue
 
 import Imports
@@ -35,7 +36,7 @@ getArgs = execParser (info ((
       option str (long "replay" <> short 'r' <> value ""))) <**> helper) idm)
 
 data BotState = BotState {
-    _bs_perf :: [NominalDiffTime]
+    _bs_perf :: [[NominalDiffTime]]
   , _bs_bs :: BotIO
   }
 
@@ -68,16 +69,22 @@ main = do
           let
             g = gs.>stateGame
             h = gs.>stateHero
+            perf = bs.>bs_perf
+            send dir ps = atomically (writeTChan chan (dir, bs{ _bs_perf = (ps:perf) }))
+            out_perf p = out [ Text.unwords $ map (rshow "%-5.0f " . (*100)) p ]
           in do
           case g.>gameFinished of
             False -> do
 
               dumpGame ds_tag gs
 
+              p1 <- diffTimeFrom tstart
+              send Stay [p1]
+
               (dir,plans) <- moveIO (bs.>bs_bs) gs
 
-              dt <- diffTimeFrom tstart
-              atomically (writeTChan chan (dir, set (bs_perf) ((bs.>bs_perf)<>[dt]) bs))
+              p2 <- diffTimeFrom tstart
+              send dir [p1,p2]
 
               when (not ds_quiet) $
                 let
@@ -95,10 +102,18 @@ main = do
                 blankLine
                 out [ drawGame g [bimg] ]
                 out [ printHeroStats g ]
-                out [ tshow (bs.>bs_perf) ]
+
+                p3 <- diffTimeFrom tstart
+                send dir [p1,p2,p3]
+
+                out [ "Perf:" ]
+                out_perf [ p1,p2,p3 ]
+                forM_ (take 10 perf) $ \p -> do
+                  out_perf p
 
             True -> do
               {- Remove game dump -}
               when (not ds_dump_game) $ do
                 removeGame ds_tag (gs.>stateGame.gameId) (gs.>stateHero.heroId)
+
 
