@@ -29,6 +29,13 @@ data Path = Path {
   , p_path :: [Pos]
   } deriving(Show,Eq,Ord)
 
+-- | Return last position of a plan, usually a point near mine/tavern/hero
+-- `def` is a default location to return in case of empty plan
+pathLastPos :: Pos -> Path -> Pos
+pathLastPos def Path{..} | null p_path = def
+                         | otherwise = last p_path
+
+
 pathLength :: Path -> Integer
 pathLength Path{..} = toInteger $ 1 + length p_path
 

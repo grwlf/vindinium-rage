@@ -117,6 +117,7 @@ gameReward = gameRewardAbs
 drawPath :: Path -> BImage
 drawPath Path{..} = drawPosList p_path
 
+-- | TODO: place `Path` inside plan
 data Plan = Plan {
     goPos :: Pos
   -- ^ Path destination, often it is a cell near the tavern/hero
@@ -127,6 +128,9 @@ data Plan = Plan {
   , goReward :: Reward
   -- ^ Plan reward
   } deriving(Show)
+
+planLastPos :: Pos -> Plan -> Pos
+planLastPos def Plan{..} = pathLastPos def (Path goPos goPath)
 
 planStep :: Pos -> Plan -> Dir
 planStep p Plan{..} =
@@ -149,12 +153,12 @@ describePlans pq =
       tell $ describePlan p <> " "
 
 
-drawGamePlans :: Game -> PlanQueue -> Text
-drawGamePlans g plans =
-  drawGame g [HashMap.fromList $
+drawGamePlans :: PlanQueue -> BImage
+drawGamePlans plans =
+  HashMap.fromList $
       (flip map (ptake 5 plans) $ \(rew,Plan{..}) ->
         (goPos, Left clrDef_White))
-      <> (maybe [] (\p ->[(goPos p, Left clrDef_Red)]) (pmax plans))]
+      <> (maybe [] (\p ->[(goPos p, Left clrDef_Red)]) (pmax plans))
 
 
 ptake :: (Ord k) => Int -> MaxPQueue k a -> [(k,a)]
@@ -167,70 +171,76 @@ pmin :: (Ord k) => MinPQueue k a -> Maybe a
 pmin q = fmap fst $ MinPQueue.minView q
 
 
+killPlan :: Game -> Hero -> Hero -> ClusterMap Tavs -> Maybe Plan
+killPlan g h h' clt
+  | h'.>heroName == h.>heroName = Nothing
+  | otherwise =
+    let
+      path = safeAstar g h (boardAdjascentAvail h'p (g.>gameBoard)) emptyKillZone
+
+      h'p = h'.>heroPos
+
+      hid = h.>heroId
+      h'id = h'.>heroId
+
+      hl = h.>heroLife
+      h'l = h'.>heroLife
+
+      hm = h.>heroMineCount
+      h'm = h'.>heroMineCount
+
+      h't' = nearestTaverns g h' clt
+
+      h't'loc = MinPQueue.minViewWithKey h't'
+
+      h't'len = fst <$> fst <$> h't'loc
+      ht'len = do
+        pos <- (pathLastPos h'p <$> snd <$> fst <$> MinPQueue.minViewWithKey h't')
+        ilength <$> p_path <$> posPath g h pos emptyKillZone
+
+      runaway = fromMaybe True $ do
+          p <- ilength <$> path
+          return $
+            case (p <= 1, ht'len, h't'len) of
+              (True, _, _) -> False
+              (_, Nothing, Just l') -> True
+              (_, Just l, Just l') | (l > l') -> True
+              _ -> False
+
+      likelywin
+        | runaway = False
+        | (h.>heroPos) == (h.>heroSpawnPos) = True
+        | (recdist (h'.>heroPos) (h.>heroSpawnPos)) <= 1 = True
+        | (recdist (h.>heroPos) (h'.>heroSpawnPos)) <= 1 = False
+        | (recdist (h'.>heroPos) (h'.>heroSpawnPos)) <= 1 = False
+        | hid < h'id && hl < h'l = False
+        | hid > h'id && hl <= h'l = False
+        | otherwise = True
+
+      rew = do
+        p <- path
+        t <- (Time . (+1) . toInteger . length) <$> path
+        return $ do
+        if likelywin
+          then gameReward g h (HashMap.fromList [(hid,  (t,WealthEvt h'm (-(hl-h'l)) 0)),
+                                                 (h'id, (t,WealthEvt (-h'm) (100-h'l) 0))
+                                                ])
+          else gameReward g h (HashMap.fromList [(hid,  (t,WealthEvt (-hm) (100-hl) 0)),
+                                                 (h'id, (t,WealthEvt hm (-(h'l-hl)) 0))
+                                                ])
+
+
+    in
+    Plan h'p <$> path <*> pure (HeroTile h'id) <*> rew
+
 
 killPlans :: Game -> Hero -> ClusterMap Tavs -> MaxPQueue Reward Plan
 killPlans g h clt = foldl' f MaxPQueue.empty (gameEnemies g h) where
-  f acc h'
-    | h'.>heroName == h.>heroName = acc
-    | otherwise =
-      let
-        path = safeAstar g h (boardAdjascentAvail h'p (g.>gameBoard)) emptyKillZone
-
-        h'p = h'.>heroPos
-
-        hid = h.>heroId
-        h'id = h'.>heroId
-
-        hl = h.>heroLife
-        h'l = h'.>heroLife
-
-        hm = h.>heroMineCount
-        h'm = h'.>heroMineCount
-
-        h't' = nearestTaverns g h' clt
-
-        h't'len = fst <$> fst <$> MinPQueue.minViewWithKey h't'
-        ht'len = do
-          pos <- (p_pos <$> snd <$> fst <$> MinPQueue.minViewWithKey h't')
-          ilength <$> p_path <$> posPath g h pos emptyKillZone
-
-        runaway = fromMaybe True $ do
-            p <- ilength <$> path
-            return $
-              case (p <= 1, ht'len, h't'len) of
-                (True, _, _) -> False
-                (_, Nothing, Just l') -> True
-                (_, Just l, Just l') | (l > l') -> True
-                _ -> False
-
-        likelywin
-          | runaway = False
-          | (h.>heroPos) == (h.>heroSpawnPos) = True
-          | (recdist (h'.>heroPos) (h.>heroSpawnPos)) <= 1 = True
-          | (recdist (h.>heroPos) (h'.>heroSpawnPos)) <= 1 = False
-          | (recdist (h'.>heroPos) (h'.>heroSpawnPos)) <= 1 = False
-          | hid < h'id && hl < h'l = False
-          | hid > h'id && hl <= h'l = False
-          | otherwise = True
-
-        rew = do
-          p <- path
-          t <- (Time . (+1) . toInteger . length) <$> path
-          return $ do
-          if likelywin
-            then gameReward g h (HashMap.fromList [(hid,  (t,WealthEvt h'm (-(hl-h'l)) 0)),
-                                                   (h'id, (t,WealthEvt (-h'm) (100-h'l) 0))
-                                                  ])
-            else gameReward g h (HashMap.fromList [(hid,  (t,WealthEvt (-hm) (100-hl) 0)),
-                                                   (h'id, (t,WealthEvt hm (-(h'l-hl)) 0))
-                                                  ])
-
-
-      in
-      -- trace' (h'id, runaway, likelywin, rew) $
-      fromMaybe acc $ MaxPQueue.insert <$> rew <*> (
-          Plan h'p <$> path <*> pure (HeroTile h'id) <*> rew
-        ) <*> pure acc
+  f acc h' =
+    let
+      p = killPlan g h h' clt
+    in
+    fromMaybe acc (MaxPQueue.insert <$> (goReward <$> p) <*> p <*> pure acc)
 
 capturePlans :: Game -> Hero -> ClusterMap Mines -> MaxPQueue Reward Plan
 capturePlans g h cm = foldClusters cm f MaxPQueue.empty (h.>heroPos) where
@@ -287,7 +297,6 @@ capturePlans g h cm = foldClusters cm f MaxPQueue.empty (h.>heroPos) where
 
                   _ -> Nothing
             in do
-            -- trace' (tile, (p_pos), likelywin, rew ) $
             case mrew of
               Just rew ->
                 modify $ MaxPQueue.insert rew (Plan p_pos p_path tile rew)
@@ -322,9 +331,10 @@ data Bot = Bot {
   , bot_clt :: !(ClusterMap Tavs)
   } deriving(Show,Generic, NFData)
 
-warmup :: Game -> Bot
-warmup g =
+warmup :: GameState -> Bot
+warmup gs =
   let
+    g = gs.>stateGame
     cm = clusterize 2 (build (g^.gameBoard) (nodeMines (g^.gameBoard)))
     ct = clusterize 2 (build (g^.gameBoard) (nodeTavs  (g^.gameBoard)))
   in
@@ -349,10 +359,12 @@ think Bot{..} g hid = Plans{..} where
   plans_pass = passPlans g h
 
 
-move :: (Monad m) =>  Bot -> Game -> HeroId -> m (Dir, PlanQueue)
-move bot@Bot{..} g hid =
+move :: Bot -> GameState -> (Dir, PlanQueue)
+move bot@Bot{..} gs =
   let
-    h = g^.gameHeroes.(idx hid)
+    g = gs.>stateGame
+    h = gs.>stateHero
+    hid = h.>heroId
 
     Plans{..} = think bot g hid
 
@@ -373,36 +385,32 @@ move bot@Bot{..} g hid =
         Just p -> ("PLAN " <> tunpack (printTile (goTile p)) <> " " <> show (goPos p))
         Nothing -> "NOPLAN"
 
-  in do
+  in
   case (nearTavern, needHealing)  of
     (Just tp, True) ->
       trace ("AUTODRINK, " <> planDesc) $
-      return (posDiff (h.>heroPos) tp, allplans)
+      (posDiff (h.>heroPos) tp, allplans)
     _ ->
       case plan of
         Just p ->
           trace ("BUSY, " <> planDesc) $
-          return (planStep (h.>heroPos) p, allplans)
+          (planStep (h.>heroPos) p, allplans)
         Nothing ->
           trace ("WANDER, " <> planDesc) $
-          return (South, allplans)
+          (South, allplans)
 
 
 data BotIO = BotIO {
     bot_clust :: !(MVar Bot)
   }
 
-warmupIO_sync :: GameState -> IO BotIO
-warmupIO_sync gs = do
-  BotIO <$> (newMVar $ force $ warmup (gs.>stateGame))
-
 warmupIO :: GameState -> IO BotIO
-warmupIO g = do
+warmupIO gs = do
   mv <- newEmptyMVar
   forkIO $ do
     {- shallow compute cm and ct -}
     putMVar mv =<< do
-      evaluate $ force $ warmup (g.>stateGame)
+      evaluate $ force $ warmup gs
 
   return $ BotIO mv
 
@@ -411,7 +419,7 @@ moveIO :: (MonadIO m) => BotIO -> GameState -> m (Dir, PlanQueue)
 moveIO bs@BotIO{..} gs = do
   liftIO (tryReadMVar bot_clust) >>= \case
     Just b -> do
-      (dir,plans) <- move b (gs.>stateGame) (gs.>stateHero.heroId)
+      (dir,plans) <- pure $ move b gs
       return (force dir, plans)
     Nothing -> do
       return (Stay, mempty)

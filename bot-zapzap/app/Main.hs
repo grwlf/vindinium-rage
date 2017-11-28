@@ -22,6 +22,7 @@ import Util
 data Args = Args {
     args_ds :: DriverSettings
   , args_replay_mb :: Maybe String
+  , args_replay_turn :: Int
   } deriving(Show)
 
 getArgs :: IO Args
@@ -30,12 +31,13 @@ getArgs = execParser (info ((
     <$> (
       DriverSettings
       <$> option str (long "tag" <> value "")
-      <*> (read <$> option str (long "training" <> short 't' <> value "0"))
+      <*> (read <$> option str (long "training" <> short 'T' <> value "0"))
       <*> switch (long "dump-state")
       <*> switch (long "dump-game")
       <*> switch (long "quiet" <> short 'q'))
-    <*> (
-      optional (option str (long "replay" <> short 'r')))) <**> helper) idm)
+    <*> (optional (option str (long "replay" <> short 'r')))
+    <*> (read <$> option str (long "turn" <> short 't' <> value "0"))
+  ) <**> helper) idm)
 
 data BotState = BotState {
     _bs_perf :: [[NominalDiffTime]]
@@ -68,13 +70,17 @@ main = do
             x -> Just [x]
       in do
       out [ "Starting replay mode", tshow replay_path ]
-      drawGameFinder "./data" replay_path (0,0) $ \gs -> do
-        out ["DEBUG HERE"]
-        bs <- BotState <$> pure mempty <*> warmupIO_sync gs <*> pure False
-        (dir,plans) <- moveIO (bs.>bs_bs) gs
+      drawGameFinder "./data" replay_path (0,args_replay_turn) $ \gs ->
+        let
+          b@Bot{..} = force $ warmup gs
+          (dir,plans) = move b gs
+          g = gs.>stateGame
+          h = gs.>stateHero
+        in do
         clearTerminal
-        out [ drawGamePlans (gs.>stateGame) plans ]
+        drawGameState "?" gs [ drawGamePlans plans ]
         out [ describePlans plans ]
+        out [ tshow $ killPlan g h (gs.>stateGame.gameHeroes.(idx (HeroId 1))) bot_clt ]
 
         return ()
 
