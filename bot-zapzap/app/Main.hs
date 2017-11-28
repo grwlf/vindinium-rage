@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
@@ -15,26 +16,30 @@ import Brain
 import Cli
 import Util
 
-
 data Args = Args {
     args_ds :: DriverSettings
   , args_replay :: String
   } deriving(Show)
 
-argsParser :: Parser Args
-argsParser =
+getArgs :: IO Args
+getArgs = execParser (info ((
   Args
     <$> (
-    DriverSettings
+      DriverSettings
       <$> option str (long "tag" <> value "")
       <*> (read <$> option str (long "training" <> short 't' <> value "0"))
       <*> switch (long "dump-state")
       <*> switch (long "dump-game")
       <*> switch (long "quiet" <> short 'q'))
     <*> (
-    option str (long "replay" <> short 'r' <> value ""))
+      option str (long "replay" <> short 'r' <> value ""))) <**> helper) idm)
 
-getArgs = execParser (info (argsParser <**> helper) idm)
+data BotState = BotState {
+    _bs_perf :: [NominalDiffTime]
+  , _bs_bs :: BotIO
+  }
+
+$(makeLenses ''BotState)
 
 main :: IO ()
 main = do
@@ -55,12 +60,11 @@ main = do
     False -> do
 
       out [ "Starting Vindinium bot, training:", tshow ds_training,
-            "Tag", tpack ds_tag
-          ]
+            "Tag", tpack ds_tag ]
 
       driver_net (Key "vhkdc75e") args_ds $ do
 
-        controller_threaded warmupIO $ \bs gs chan ->
+        controller_threaded (\(gs,_) -> BotState <$> pure mempty <*> warmupIO gs) $ \bs (gs,tstart) chan ->
           let
             g = gs.>stateGame
             h = gs.>stateHero
@@ -70,7 +74,10 @@ main = do
 
               dumpGame ds_tag gs
 
-              plans <- moveIO bs gs chan
+              (dir,plans) <- moveIO (bs.>bs_bs) gs
+
+              dt <- diffTimeFrom tstart
+              atomically (writeTChan chan (dir, set (bs_perf) ((bs.>bs_perf)<>[dt]) bs))
 
               when (not ds_quiet) $
                 let
@@ -88,6 +95,7 @@ main = do
                 blankLine
                 out [ drawGame g [bimg] ]
                 out [ printHeroStats g ]
+                out [ tshow (bs.>bs_perf) ]
 
             True -> do
               {- Remove game dump -}

@@ -386,14 +386,12 @@ warmupIO g = do
   return $ BotIO mv
 
 
-moveIO :: BotIO -> GameState -> TChan (Dir,BotIO) -> IO PlanQueue
-moveIO bs@BotIO{..} gs chan = do
+moveIO :: BotIO -> GameState -> IO (Dir, PlanQueue)
+moveIO bs@BotIO{..} gs = do
   liftIO (tryReadMVar bot_clust) >>= \case
     Just b -> do
       (dir,plans) <- move b (gs.>stateGame) (gs.>stateHero.heroId)
-      atomically (writeTChan chan (force dir, bs))
-      return plans
+      return (force dir, plans)
     Nothing -> do
-      atomically (writeTChan chan (Stay, bs))
-      return MaxPQueue.empty
+      return (Stay, mempty)
 
