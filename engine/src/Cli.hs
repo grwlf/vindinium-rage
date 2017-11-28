@@ -32,8 +32,8 @@ type BImage = HashMap Pos (Either Text Text)
 emptyBImage :: BImage
 emptyBImage = mempty
 
-drawBoard :: Board -> [BImage] -> Text
-drawBoard Board{..} maps =
+drawBoard :: Board -> [Hero] -> [BImage] -> Text
+drawBoard Board{..} heroes maps =
   foldl (<>)
     (foldl (<>) "  " $
     flip map [0.._bo_size -1] $ \x ->
@@ -43,10 +43,12 @@ drawBoard Board{..} maps =
     ((Text.pack $ printf "%02d" y):) $
     flip map [0.._bo_size-1] $ \x ->
       let
+        hsp = map (.>heroSpawnPos) heroes
         p = Pos x y
         t = (_bo_tiles HashMap.! p)
-        def = printTileC t
-        def_ = printTile t
+        sp x = if p `elem` hsp then ". " else x
+        def = sp $ printTileC t
+        def_ = sp $ printTile t
       in
       case (t, fromMaybe (Right def) $ msum (map (HashMap.lookup p) maps)) of
         (HeroTile _, _) -> def
@@ -115,8 +117,7 @@ printHeroStats g@Game{..} =
       tell $ tpack $ printf "%20s" (show $ h.>heroMineCount)
     tell "\n"
 
-printGame g = drawBoard (g.>gameBoard) []
-drawGame g xs = drawBoard (g.>gameBoard) xs
+drawGame g xs = drawBoard (g.>gameBoard) (HashMap.elems $ g.>gameHeroes) xs
 
 
 -- | Let the user iterate through game records. Optional list of games @mgs@.
@@ -140,7 +141,7 @@ drawGameFinder data_dir mgs execfunc = do
       display (i,j) = do
         ss <- loadState (fn i j)
         clearTerminal
-        out [ printGame (ss.>stateGame) ]
+        out [ drawGame (ss.>stateGame) [] ]
         blankLine
         out [ tpack (fn i j), tshow i, "of", tshow imax ]
         out [ "Use j/k to iterate through the games" ]
