@@ -21,7 +21,7 @@ import Util
 
 data Args = Args {
     args_ds :: DriverSettings
-  , args_replay :: String
+  , args_replay_mb :: Maybe String
   } deriving(Show)
 
 getArgs :: IO Args
@@ -35,7 +35,7 @@ getArgs = execParser (info ((
       <*> switch (long "dump-game")
       <*> switch (long "quiet" <> short 'q'))
     <*> (
-      option str (long "replay" <> short 'r' <> value ""))) <**> helper) idm)
+      optional (option str (long "replay" <> short 'r')))) <**> helper) idm)
 
 data BotState = BotState {
     _bs_perf :: [[NominalDiffTime]]
@@ -52,7 +52,6 @@ report :: StateT (TChan x, x) IO ()
 report = get >>= \(chan,x) -> lift (atomically (writeTChan chan x))
 
 
-
 main :: IO ()
 main = do
   unbufferStdin
@@ -60,14 +59,16 @@ main = do
   Args{..} <- getArgs
   DriverSettings{..} <- pure args_ds
 
-  case not (null args_replay) of
-
-    True -> do
-
+  case args_replay_mb of
+    Just args_replay ->
+      let
+        replay_path =
+          case args_replay of
+            [] -> Nothing
+            x -> Just [x]
+      in do
       out [ "Starting replay mode" ]
-      (i0,j0) <- pure $ (read *** (read . tail)) $ span (/=',') args_replay
-
-      drawGameFinder "./data" Nothing (i0,j0) $ \gs -> do
+      drawGameFinder "./data" replay_path (0,0) $ \gs -> do
         out ["DEBUG HERE"]
         bs <- BotState <$> pure mempty <*> warmupIO_sync gs <*> pure False
         (dir,plans) <- moveIO (bs.>bs_bs) gs
@@ -77,7 +78,7 @@ main = do
 
         return ()
 
-    False -> do
+    Nothing -> do
 
       out [ "Starting Vindinium bot, training:", tshow ds_training,
             "Tag", tpack ds_tag ]
@@ -104,7 +105,7 @@ main = do
             case g.>gameFinished of
               False -> do
 
-                dumpGame ds_tag gs
+                gpath <- dumpGame ds_tag gs
 
                 p1 <- diffTimeFrom tstart
                 send Stay [p1]
@@ -123,22 +124,21 @@ main = do
 
                   in do
                   clearTerminal
-                  out [ "Tag:", "'" <> tpack ds_tag <> "'" ]
-                  out [ "Hero:", h.>heroName,
-                        "(" <> printHero (h.>heroId) <> ")" ]
+                  out [ printHeader ds_tag g h ]
                   blankLine
                   out [ drawGame g [bimg] ]
+                  blankLine
                   out [ printHeroStats g ]
 
                   p3 <- diffTimeFrom tstart
                   send dir [p1,p2,p3]
 
                   when (bs.>bs_dump) $ do
-                    out [ "This game will be saved" ]
+                    out [ "This game will be saved to", "'" <> tpack gpath <> "'" ]
 
                   out [ "Perf:" ]
                   out_perf [ p1,p2,p3 ]
-                  forM_ (take 5 perf) $ \p -> do
+                  forM_ (take 4 perf) $ \p -> do
                     out_perf p
 
                 has_stdin <- liftIO $ hReady stdin
