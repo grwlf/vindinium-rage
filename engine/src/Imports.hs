@@ -121,8 +121,11 @@ assert x b = if not b then error (show x) else return ()
 tshow :: (Show a) => a -> Text
 tshow = Text.pack . show
 
-rshow :: (Real a) => a -> Text
-rshow r = tpack $ printf "%-2.1f" ((fromRational $ toRational r) :: Double)
+rshow :: (Real a) => String -> a -> Text
+rshow mask r = tpack $ printf mask ((fromRational $ toRational r) :: Double)
+
+rshow_ :: (Real a) => a -> Text
+rshow_ r = tpack $ printf "%-2.1f" ((fromRational $ toRational r) :: Double)
 
 tpack :: String -> Text
 tpack = Text.pack
