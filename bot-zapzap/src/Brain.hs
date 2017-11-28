@@ -386,7 +386,7 @@ warmupIO g = do
   return $ BotIO mv
 
 
-moveIO :: BotIO -> GameState -> IO (Dir, PlanQueue)
+moveIO :: (MonadIO m) => BotIO -> GameState -> m (Dir, PlanQueue)
 moveIO bs@BotIO{..} gs = do
   liftIO (tryReadMVar bot_clust) >>= \case
     Just b -> do

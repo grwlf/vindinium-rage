@@ -1,10 +1,12 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
 import Options.Applicative
 import System.Exit
+import System.IO (hReady, stdin)
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
@@ -38,12 +40,20 @@ getArgs = execParser (info ((
 data BotState = BotState {
     _bs_perf :: [[NominalDiffTime]]
   , _bs_bs :: BotIO
+  , _bs_dump :: Bool
   }
 
 $(makeLenses ''BotState)
 
+process :: x -> TChan x -> StateT (TChan x, x) IO () -> IO ()
+process x chan m = execStateT m (chan,x) >>= atomically . writeTChan chan . snd
+
+report :: StateT (TChan x, x) IO ()
+report = get >>= \(chan,x) -> lift (atomically (writeTChan chan x))
+
 main :: IO ()
 main = do
+  unbufferStdin
 
   Args{..} <- getArgs
   DriverSettings{..} <- pure args_ds
@@ -63,57 +73,75 @@ main = do
       out [ "Starting Vindinium bot, training:", tshow ds_training,
             "Tag", tpack ds_tag ]
 
-      driver_net (Key "vhkdc75e") args_ds $ do
-
-        controller_threaded (\(gs,_) -> BotState <$> pure mempty <*> warmupIO gs) $ \bs (gs,tstart) chan ->
+      driver_net (Key "vhkdc75e") args_ds $
+        let
+          mkbs0 (gs,_) = BotState <$> pure mempty <*> warmupIO gs <*> pure ds_dump_game
+        in do
+        controller_threaded mkbs0 $ \bs (gs,tstart) chan ->
           let
             g = gs.>stateGame
             h = gs.>stateHero
             perf = bs.>bs_perf
-            send dir ps = atomically (writeTChan chan (dir, bs{ _bs_perf = (ps:perf) }))
             out_perf p = out [ Text.unwords $ map (rshow "%-5.0f " . (*100)) p ]
-          in do
-          case g.>gameFinished of
-            False -> do
 
-              dumpGame ds_tag gs
+            send dir p = do
+              _2._1 %= const dir
+              _2._2.bs_perf %= const (p:perf)
+              report
 
-              p1 <- diffTimeFrom tstart
-              send Stay [p1]
+            toggle_dump = _2._2.bs_dump %= not
+          in
+          process (Stay,bs) chan $ do
+            case g.>gameFinished of
+              False -> do
 
-              (dir,plans) <- moveIO (bs.>bs_bs) gs
+                dumpGame ds_tag gs
 
-              p2 <- diffTimeFrom tstart
-              send dir [p1,p2]
+                p1 <- diffTimeFrom tstart
+                send Stay [p1]
 
-              when (not ds_quiet) $
-                let
+                (dir,plans) <- moveIO (bs.>bs_bs) gs
+                p2 <- diffTimeFrom tstart
+                send dir [p1,p2]
 
-                  bimg = HashMap.fromList $
-                    (flip map (take 5 $ MaxPQueue.toList plans) $ \(rew,Plan{..}) ->
-                      (goPos, Left clrDef_White))
-                    <> (maybe [] (\p ->[(goPos p, Left clrDef_Red)]) (pmax plans))
+                when (not ds_quiet) $
+                  let
 
-                in do
-                clearTerminal
-                out [ "Tag:", "'" <> tpack ds_tag <> "'" ]
-                out [ "Hero:", h.>heroName,
-                      "(" <> printHero (h.>heroId) <> ")" ]
-                blankLine
-                out [ drawGame g [bimg] ]
-                out [ printHeroStats g ]
+                    bimg = HashMap.fromList $
+                      (flip map (take 5 $ MaxPQueue.toList plans) $ \(rew,Plan{..}) ->
+                        (goPos, Left clrDef_White))
+                      <> (maybe [] (\p ->[(goPos p, Left clrDef_Red)]) (pmax plans))
 
-                p3 <- diffTimeFrom tstart
-                send dir [p1,p2,p3]
+                  in do
+                  clearTerminal
+                  out [ "Tag:", "'" <> tpack ds_tag <> "'" ]
+                  out [ "Hero:", h.>heroName,
+                        "(" <> printHero (h.>heroId) <> ")" ]
+                  blankLine
+                  out [ drawGame g [bimg] ]
+                  out [ printHeroStats g ]
 
-                out [ "Perf:" ]
-                out_perf [ p1,p2,p3 ]
-                forM_ (take 10 perf) $ \p -> do
-                  out_perf p
+                  p3 <- diffTimeFrom tstart
+                  send dir [p1,p2,p3]
 
-            True -> do
-              {- Remove game dump -}
-              when (not ds_dump_game) $ do
-                removeGame ds_tag (gs.>stateGame.gameId) (gs.>stateHero.heroId)
+                  when (bs.>bs_dump) $ do
+                    out [ "This game will be saved" ]
+
+                  out [ "Perf:" ]
+                  out_perf [ p1,p2,p3 ]
+                  forM_ (take 5 perf) $ \p -> do
+                    out_perf p
+
+                has_stdin <- liftIO $ hReady stdin
+                when has_stdin $ do
+                  c <- liftIO getChar
+                  case c of
+                    's' -> toggle_dump
+                    _ -> out ["Press 's' to dump the game"]
+
+              True -> do
+                {- Remove game dump -}
+                when (not (bs.>bs_dump)) $ do
+                  removeGame ds_tag (gs.>stateGame.gameId) (gs.>stateHero.heroId)
 
 
