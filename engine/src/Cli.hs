@@ -47,13 +47,13 @@ drawBoard Board{..} heroes maps =
         p = Pos x y
         t = (_bo_tiles HashMap.! p)
         sp x = if p `elem` hsp then ". " else x
-        def = sp $ printTileC t
+        def = printTileC t
         def_ = sp $ printTile t
       in
-      case (t, fromMaybe (Right def) $ msum (map (HashMap.lookup p) maps)) of
+      case (t, fromMaybe (Right (sp def)) $ msum (map (HashMap.lookup p) maps)) of
+        (_, Left clr) -> clr <> (sp def_) <> clrDef
+        (_, Right new) -> (sp new)
         (HeroTile _, _) -> def
-        (_, Right new) -> new
-        (_, Left clr) -> clr <> def_ <> clrDef
 
 printBoard b = drawBoard b []
 
@@ -71,8 +71,9 @@ clrBlue = "\027[34m"
 clrRed =  "\027[31m"
 clrYellow = "\027[33m"
 
-clrDef_White :: Text
+clrDef_White,clrDef_Red :: Text
 clrDef_White = "\027[39;47m"
+clrDef_Red = "\027[39;41m"
 
 heroColors = HashMap.fromList [
   (HeroId 1,clrRed),
