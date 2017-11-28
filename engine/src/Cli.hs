@@ -146,9 +146,11 @@ drawGameFinder data_dir mgs (i0,j0) execfunc = do
       display (i,j) = do
         ss <- loadState (fn i j)
         clearTerminal
+        out [ tpack (fn i j), "address", tshow i <> "," <> tshow j ]
+        blankLine
+        out [ printHeader "?" (ss.>stateGame) (ss.>stateHero) ]
         out [ drawGame (ss.>stateGame) [] ]
         blankLine
-        out [ tpack (fn i j), "address", tshow i <> "," <> tshow j ]
         out [ "Use j/k to iterate through the games" ]
         out [ "Use h/l to iterate through the game moves" ]
         out [ "Use o to execute the decision maker" ]
