@@ -134,15 +134,39 @@ planStep p Plan{..} =
     (p':ps) -> posDiff p p'
     [] -> posDiff p goPos
 
-bimagePlan :: Plan -> BImage
-bimagePlan Plan{..} = drawPosList goPath -- <> (hmap1 goPos "X ")
+drawPlan :: Plan -> BImage
+drawPlan Plan{..} = drawPosList goPath -- <> (hmap1 goPos "X ")
 
+type PlanQueue = MaxPQueue Reward Plan
 
-describePlans :: MaxPQueue Reward Plan -> Text
+describePlan :: Plan -> Text
+describePlan Plan{..} = (printTileC goTile) <> "," <> (rshow "%0.3f" goReward)
+
+describePlans :: PlanQueue -> Text
 describePlans pq =
   execWriter $ do
-    forM_ ((MaxPQueue.toDescList pq)`zip`[0..4]) $ \((r,Plan{..}),_) -> do
-      tell $ (printTile goTile) <> "," <> tpack (printf "%0.3f" (fromRational r :: Double)) <> " "
+    forM_ (MaxPQueue.toDescList pq) $ \(rew,p) -> do
+      tell $ describePlan p <> " "
+
+
+drawGamePlans :: Game -> PlanQueue -> Text
+drawGamePlans g plans =
+  drawGame g [HashMap.fromList $
+      (flip map (ptake 5 plans) $ \(rew,Plan{..}) ->
+        (goPos, Left clrDef_White))
+      <> (maybe [] (\p ->[(goPos p, Left clrDef_Red)]) (pmax plans))]
+
+
+ptake :: (Ord k) => Int -> MaxPQueue k a -> [(k,a)]
+ptake n q = MaxPQueue.take n q
+
+pmax :: (Ord k) => MaxPQueue k a -> Maybe a
+pmax q = fmap fst $ MaxPQueue.maxView q
+
+pmin :: (Ord k) => MinPQueue k a -> Maybe a
+pmin q = fmap fst $ MinPQueue.minView q
+
+
 
 killPlans :: Game -> Hero -> ClusterMap Tavs -> MaxPQueue Reward Plan
 killPlans g h clt = foldl' f MaxPQueue.empty (gameEnemies g h) where
@@ -174,7 +198,7 @@ killPlans g h clt = foldl' f MaxPQueue.empty (gameEnemies g h) where
             p <- ilength <$> path
             return $
               case (ht'len, h't'len) of
-                (Nothing, Just l') | (p > l') -> True -- TODO: guard is redundant ?
+                (Nothing, Just l') -> True
                 (Just l, Just l') | (l > l') -> True
                 _ -> False
 
@@ -305,14 +329,6 @@ warmup g =
   in
   Bot cm ct
 
-pmax :: (Ord k) => MaxPQueue k a -> Maybe a
-pmax q = fmap fst $ MaxPQueue.maxView q
-
-pmin :: (Ord k) => MinPQueue k a -> Maybe a
-pmin q = fmap fst $ MinPQueue.minView q
-
-type PlanQueue = MaxPQueue Reward Plan
-
 data Plans = Plans {
     plans_kill :: PlanQueue
   , plans_capture :: PlanQueue
@@ -374,6 +390,10 @@ move bot@Bot{..} g hid =
 data BotIO = BotIO {
     bot_clust :: !(MVar Bot)
   }
+
+warmupIO_sync :: GameState -> IO BotIO
+warmupIO_sync gs = do
+  BotIO <$> (newMVar $ force $ warmup (gs.>stateGame))
 
 warmupIO :: GameState -> IO BotIO
 warmupIO g = do

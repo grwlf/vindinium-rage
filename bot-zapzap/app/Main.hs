@@ -51,6 +51,8 @@ process x chan m = execStateT m (chan,x) >>= atomically . writeTChan chan . snd
 report :: StateT (TChan x, x) IO ()
 report = get >>= \(chan,x) -> lift (atomically (writeTChan chan x))
 
+
+
 main :: IO ()
 main = do
   unbufferStdin
@@ -63,9 +65,16 @@ main = do
     True -> do
 
       out [ "Starting replay mode" ]
+      (i0,j0) <- pure $ (read *** (read . tail)) $ span (/=',') args_replay
 
-      drawGameFinder args_replay Nothing $ \gs -> do
+      drawGameFinder "./data" Nothing (i0,j0) $ \gs -> do
         out ["DEBUG HERE"]
+        bs <- BotState <$> pure mempty <*> warmupIO_sync gs <*> pure False
+        (dir,plans) <- moveIO (bs.>bs_bs) gs
+        clearTerminal
+        out [ drawGamePlans (gs.>stateGame) plans ]
+        out [ describePlans plans ]
+
         return ()
 
     False -> do
