@@ -63,7 +63,7 @@ import Control.Monad.Reader
 import Control.Monad.Writer.Strict (MonadWriter(..), tell, execWriter)
 import Control.Monad.Cont
 import Control.Monad.Identity
-import Control.Lens (Lens', Lens, makeLenses, (<%=), (%=), (%%=), (^.), zoom, set, view, use, uses, _1, _2, _3, _4, _5, _6)
+import Control.Lens (Lens', Lens, makeLenses, (<%=), (%=), (%%=), (^.), zoom, set, view, over, use, uses, _1, _2, _3, _4, _5, _6)
 import Control.DeepSeq
 import Data.Bits
 import Data.Ratio

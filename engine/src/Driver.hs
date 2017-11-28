@@ -46,14 +46,14 @@ drainTChan tc = go Nothing where
 -- Every move, `step` function starts in new thread as a protection against
 -- exception and timeouts
 controller_threaded :: forall a g m . (MonadIO m, MonadBot m)
-       => (GameState -> IO a)
-       -> (a -> GameState -> TChan (Dir,a) -> IO ())
+       => ((GameState,UTCTime) -> IO a)
+       -> (a -> (GameState,UTCTime) -> TChan (Dir,a) -> IO ())
        -> m ()
 controller_threaded botWarmup botMove = do
   (gs0,tstart0) <- botInit
   let g0 = gs0.>stateGame
   let hid0 = gs0.>stateHero.heroId
-  bs0 <- liftIO $ botWarmup gs0
+  bs0 <- liftIO $ botWarmup (gs0,tstart0)
   flip evalStateT (gs0,bs0,tstart0) $ do
     forever $ do
       (gs,bs,tstart) <- get
@@ -62,7 +62,7 @@ controller_threaded botWarmup botMove = do
       bot_finished <- liftIO newEmptyMVar
       thandle <- liftIO $ forkIO $ do
         catch (do
-            botMove bs gs bot_channel
+            botMove bs (gs,tstart) bot_channel
           )
           (\(e::SomeException) -> do
             Text.hPutStrLn stderr $ "Exception '" <> tshow e <> "' from botMove function"
