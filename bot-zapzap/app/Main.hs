@@ -64,10 +64,10 @@ main = do
       let
         replay_path =
           case args_replay of
-            [] -> Nothing
+            (_:[]) -> Nothing
             x -> Just [x]
       in do
-      out [ "Starting replay mode" ]
+      out [ "Starting replay mode", tshow replay_path ]
       drawGameFinder "./data" replay_path (0,0) $ \gs -> do
         out ["DEBUG HERE"]
         bs <- BotState <$> pure mempty <*> warmupIO_sync gs <*> pure False
