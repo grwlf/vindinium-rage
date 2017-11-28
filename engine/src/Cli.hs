@@ -125,6 +125,18 @@ drawGame g xs = drawBoard (g.>gameBoard) (HashMap.elems $ g.>gameHeroes) xs
 
 unbufferStdin = hSetBuffering stdin NoBuffering
 
+drawGameState :: (MonadIO m) => String -> GameState -> [BImage] -> m ()
+drawGameState tag gs bimg =
+  let
+    g = gs.>stateGame
+    h = gs.>stateHero
+  in do
+  out [ printHeader tag g h ]
+  blankLine
+  out [ drawGame g bimg ]
+  blankLine
+  out [ printHeroStats g ]
+
 -- | Let the user iterate through game records. Optional list of games @mgs@.
 -- Default location will be used if Nothing.
 -- Executes @exec@ when user press Enter
@@ -148,9 +160,7 @@ drawGameFinder data_dir mgs (i0,j0) execfunc = do
         clearTerminal
         out [ tpack (fn i j), "address", tshow i <> "," <> tshow j ]
         blankLine
-        out [ printHeader "?" (ss.>stateGame) (ss.>stateHero) ]
-        out [ drawGame (ss.>stateGame) [] ]
-        blankLine
+        drawGameState "?" ss []
         out [ "Use j/k to iterate through the games" ]
         out [ "Use h/l to iterate through the game moves" ]
         out [ "Use o to execute the decision maker" ]

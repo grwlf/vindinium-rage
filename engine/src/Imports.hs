@@ -106,6 +106,9 @@ import qualified Control.Lens.Getter
 trace1 :: (Show a) => a -> a
 trace1 a = trace (ppShow a) a
 
+trace1S :: (Show a) => String -> a -> a
+trace1S str a = trace (str <> " " <> ppShow a) a
+
 traceM :: (Monad m, Show a) => a -> m ()
 traceM a = trace (ppShow a) (return ())
 
