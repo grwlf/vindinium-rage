@@ -76,8 +76,9 @@ main = do
                 let
 
                   bimg = HashMap.fromList $
-                    flip map (take 5 $ MaxPQueue.toList plans) $ \(rew,Plan{..}) ->
-                      (goPos, Left clrDef_White)
+                    (flip map (take 5 $ MaxPQueue.toList plans) $ \(rew,Plan{..}) ->
+                      (goPos, Left clrDef_White))
+                    <> (maybe [] (\p ->[(goPos p, Left clrDef_Red)]) (pmax plans))
 
                 in do
                 clearTerminal
