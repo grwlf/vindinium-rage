@@ -120,13 +120,14 @@ printHeroStats g@Game{..} =
 
 drawGame g xs = drawBoard (g.>gameBoard) (HashMap.elems $ g.>gameHeroes) xs
 
+unbufferStdin = hSetBuffering stdin NoBuffering
 
 -- | Let the user iterate through game records. Optional list of games @mgs@.
 -- Default location will be used if Nothing.
 -- Executes @exec@ when user press Enter
 drawGameFinder :: FilePath -> Maybe [FilePath] -> (GameState -> IO ()) -> IO ()
 drawGameFinder data_dir mgs execfunc = do
-  hSetBuffering stdin NoBuffering
+  unbufferStdin
   let d = data_dir
   gs <-
     case mgs of
