@@ -197,9 +197,10 @@ killPlans g h clt = foldl' f MaxPQueue.empty (gameEnemies g h) where
         runaway = fromMaybe True $ do
             p <- ilength <$> path
             return $
-              case (ht'len, h't'len) of
-                (Nothing, Just l') -> True
-                (Just l, Just l') | (l > l') -> True
+              case (p <= 1, ht'len, h't'len) of
+                (True, _, _) -> False
+                (_, Nothing, Just l') -> True
+                (_, Just l, Just l') | (l > l') -> True
                 _ -> False
 
         likelywin
