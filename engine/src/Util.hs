@@ -20,7 +20,7 @@ dateString = do
   let (y, m, d) = toGregorian (utctDay t)
   return $ printf "%d-%02d-%02d-%s" y m d (show $ utctDayTime t)
 
-dumpGame :: (MonadIO m) => String -> GameState -> m ()
+dumpGame :: (MonadIO m) => String -> GameState -> m FilePath
 dumpGame tag gs = liftIO $ do
   let nmove = (gs.>stateGame.gameTurn `div` 4)
   let gid = gameid (gs.>stateGame.gameId)
@@ -30,6 +30,7 @@ dumpGame tag gs = liftIO $ do
   createDirectoryIfMissing True ("data" </> gn)
   ByteString.writeFile (f++".tmp") (Aeson.encode (gs^.stateJSON))
   renameFile (f++".tmp") f
+  return ("data" </> gn)
 
 removeGame :: (MonadIO m) => String -> GameId -> HeroId -> m ()
 removeGame tag gid hid = liftIO $ do

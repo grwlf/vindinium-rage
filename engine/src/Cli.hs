@@ -94,6 +94,11 @@ printTileC x = printTile x
 printTilesC :: Board -> Text
 printTilesC = foldl (<>) "" . map printTileC . boardTiles
 
+printHeader :: String -> Game -> Hero -> Text
+printHeader tag g h =
+    Text.unwords [ "Tag:", "'" <> tpack tag <> "'"
+                 , "Hero:", h.>heroName, "(" <> printHero (h.>heroId) <> ")"
+                 , "Turn:", tshow ((g.>gameTurn)`div`4), "/", tshow ((g.>gameMaxTurns)`div`4)]
 
 printHeroStats :: Game -> Text
 printHeroStats g@Game{..} =
@@ -101,15 +106,13 @@ printHeroStats g@Game{..} =
     hs = sortBy (compare`on`_heroId) $ HashMap.elems $ g^.gameHeroes
   in
   execWriter $ do
+    tell "\n"
     tell $ "HeroId "
     forM_ hs $ \h -> do
-      tell $ (heroColor (h.>heroId)) <> (tpack $ printf "%20s" (Text.take 10 $ h^.heroName)) <> clrDef
-    tell "\n\n"
-    tell $ "Life "
-    forM_ hs $ \h -> do
-      tell $ tpack $ printf "%20s" (show $ h.>heroLife)
+      tell $ heroColor (h.>heroId) <> (tpack $ printf "%16s" (Text.take 10 $ h^.heroName)) <> clrDef
+        <> (tpack $ printf "(%02d)" (h.>heroLife))
     tell "\n"
-    tell $ "Gold "
+    tell $ "Gold  "
     forM_ hs $ \h -> do
       tell $ tpack $ printf "%20s" (show $ h.>heroGold)
     tell "\n"
@@ -131,7 +134,7 @@ drawGameFinder data_dir mgs (i0,j0) execfunc = do
   let d = data_dir
   gs <-
     case mgs of
-      Just x -> return x
+      Just x -> return (map (</> "%04d.json") x)
       Nothing -> do
         map (</> "%04d.json") <$> map (d </>) <$> filter ("game"`isPrefixOf`) <$> getDirectoryContents d
   let imax = length gs
