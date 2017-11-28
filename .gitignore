@@ -1,0 +1,11 @@
+.*
+*/dist/*
+tags
+*/data/*
+data
+Setup.hs
+*prof
+*config
+*/_stop*
+*/result
+result

@@ -18,28 +18,25 @@ let
   bot = haskellPackages.callPackage
       ({ mkDerivation, aeson, base, binary, bytestring, containers
       , deepseq, directory, filepath, hashable, heap
-      , lens
-      , MonadRandom, mtl, optparse-applicative, pqueue, pretty-show
-      , process, psqueues, random, rdtsc, stdenv, stm, text, time
+      , lens, mtl, optparse-applicative, pqueue, pretty-show
+      , process, psqueues, random, stdenv, stm, text, time
       , transformers, unix, cabal-install, haskdogs, hasktags
-      , gitrev
       }:
       mkDerivation {
-        pname = "vindinium-bot";
+        pname = "bot-zapzap";
         version = "0.1.0.0";
         src = builtins.filterSource distSourceFilter ./.;
         isLibrary = false;
         isExecutable = true;
         libraryHaskellDepends = [
           aeson base binary bytestring containers deepseq directory filepath
-          hashable heap lens
-          MonadRandom mtl optparse-applicative pqueue
-          pretty-show process psqueues random rdtsc stm text time
-          transformers unix cabal-install vindinium gitrev
+          hashable heap lens mtl optparse-applicative pqueue
+          pretty-show process psqueues random stm text time transformers unix
+          cabal-install vindinium
         ];
         executableHaskellDepends = [
           aeson base binary bytestring containers lens mtl
-          optparse-applicative rdtsc text unix haskdogs hasktags
+          optparse-applicative text unix haskdogs hasktags
         ];
         license = stdenv.lib.licenses.mit;
 
@@ -48,6 +45,10 @@ let
         shellHook=''
           if test -f /etc/myprofile ; then
             . /etc/myprofile
+          fi
+
+          if test -f profile.sh ; then
+            . profile.sh
           fi
         '';
       }) {};

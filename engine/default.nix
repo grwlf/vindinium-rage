@@ -74,10 +74,9 @@ let
 
   vindinium = haskellPackages.callPackage
       ({ mkDerivation, aeson, base, binary, bytestring, containers
-      , deepseq, Diff, directory, filepath, hashable, heap
-      , http-types, lens, mersenne-random-pure64
-      , MonadRandom, mtl, optparse-applicative, pqueue, pretty-show
-      , process, psqueues, random, rdtsc, stdenv, stm, text, time
+      , deepseq, directory, filepath, hashable, heap
+      , http-types, lens, mtl, optparse-applicative, pqueue, pretty-show
+      , process, psqueues, random, stdenv, stm, text, time
       , transformers, unix, cabal-install, haskdogs, hasktags
       }:
       mkDerivation {
@@ -89,19 +88,23 @@ let
         libraryHaskellDepends = [
           aeson base binary bytestring containers deepseq directory filepath
           hashable heap http-client http-types lens
-          mersenne-random-pure64 MonadRandom mtl optparse-applicative pqueue
-          pretty-show process psqueues random rdtsc stm text time
-          transformers unix cabal-install heredocs
+          mtl optparse-applicative pqueue
+          pretty-show process psqueues random stm text time
+          transformers unix cabal-install
         ];
         executableHaskellDepends = [
-          aeson base binary bytestring containers Diff lens mtl
-          optparse-applicative rdtsc text unix haskdogs hasktags
+          aeson base binary bytestring containers lens mtl
+          optparse-applicative text unix haskdogs hasktags
         ];
         license = stdenv.lib.licenses.mit;
 
         shellHook=''
           if test -f /etc/myprofile ; then
             . /etc/myprofile
+          fi
+
+          if test -f profile.sh ; then
+            . profile.sh
           fi
         '';
       }) {};

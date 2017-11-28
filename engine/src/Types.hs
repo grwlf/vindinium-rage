@@ -1,5 +1,12 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Types where
 
 import qualified Data.Aeson as Aeson
@@ -10,13 +17,8 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import qualified Data.List as List
 import Imports
-import Perf
 
-type BImage = HashMap Pos Text
-
-class BoardImage a where
-  bimage :: a -> BImage
-
+-- | Key aka password
 newtype Key = Key Text
   deriving (Show, Eq)
 
@@ -49,10 +51,6 @@ recdist :: Pos -> Pos -> Integer
 recdist (Pos x1 y1) (Pos x2 y2) = abs (x1 - x2) + abs (y1 - y2)
 
 posNear p1 p2 = recdist p1 p2 == 1
-
-drawPosList :: [Pos] -> BImage
-drawPosList ps = HashMap.fromList $ ps`zip`(repeat "x ")
-
 
 meanPos :: (Foldable t) => t Pos -> Pos
 meanPos ps =
@@ -241,6 +239,25 @@ instance FromJSON Board where
     parseJSON (Aeson.Object o) = parseBoard <$> o .: "size" <*> o .: "tiles"
     parseJSON _ = mzero
 
+-- | Print a tile with a canonical symbol
+printTile FreeTile = "  "
+printTile WoodTile = "##"
+printTile (HeroTile hid@(HeroId i)) = "@" <> (tpack $ show i)
+printTile TavernTile = "[]"
+printTile (MineTile Nothing) = "$-"
+printTile (MineTile (Just hid@(HeroId i))) = "$" <> (tpack $ show i)
+
+-- | Print non-moving tile with a canonical symbol, otherwise print empty space
+printTileStatic FreeTile = "  "
+printTileStatic WoodTile = "##"
+printTileStatic TavernTile = "[]"
+printTileStatic (MineTile _) = "$-"
+printTileStatic _ = "  "
+
+
+printTiles :: Board -> Text
+printTiles = foldl (<>) "" . map printTile . boardTiles
+
 instance ToJSON Board where
     toJSON b  = Aeson.object [ "size"  .= view bo_size b
                              , "tiles" .= printTiles b
@@ -286,64 +303,6 @@ parseBoard s t =
       p %= const ( if | posX == s-1 -> Pos 0 (posY+1)
                       | otherwise -> Pos (posX+1) posY )
 
-drawBoard' :: Board -> [BImage] -> Text
-drawBoard' Board{..} maps =
-  foldl (<>)
-    (foldl (<>) "  " $
-    flip map [0.._bo_size -1] $ \x ->
-      (Text.pack $ printf "%02d" x)) $
-  flip map [0.._bo_size -1] $ \y ->
-    foldl (<>) "\n" $
-    ((Text.pack $ printf "%02d" y):) $
-    flip map [0.._bo_size-1] $ \x ->
-      let
-        p = Pos x y
-        t = (_bo_tiles HashMap.! p)
-        def = printTile t
-      in
-      case t of
-        HeroTile _ -> def
-        _ -> fromMaybe def $ msum (map (HashMap.lookup p) maps)
-
-drawBoard :: (BoardImage a) => Board -> [a] -> Text
-drawBoard b l = drawBoard' b (map bimage l)
-
-printBoard b = drawBoard' b []
-
-printTiles :: Board -> Text
-printTiles = foldl (<>) "" . map printTile . boardTiles
-
-
-clrDef = "\027[39m"
-clrGreen = "\027[32m"
-clrLGreen = "\027[92m"
-clrCyan = "\027[36m"
-clrBlue = "\027[34m"
-clrRed =  "\027[31m"
-clrYellow = "\027[33m"
-
-heroColors = HashMap.fromList [
-  (HeroId 1,clrRed),
-  (HeroId 2,clrBlue),
-  (HeroId 3,clrGreen),
-  (HeroId 4,clrYellow)]
-
-heroColor hid = heroColors HashMap.! hid
-
-printTile FreeTile = "  "
-printTile WoodTile = "##"
-printTile (HeroTile hid@(HeroId i)) = (heroColors HashMap.! hid) <> "@" <> (tpack $ show i) <> clrDef
-printTile TavernTile = clrCyan <> "[]" <> clrDef
-printTile (MineTile Nothing) = "$-"
-printTile (MineTile (Just hid@(HeroId i))) = (heroColors HashMap.! hid) <> "$" <> (tpack $ show i) <> clrDef
-
-printTileStatic FreeTile = "  "
-printTileStatic WoodTile = "##"
-printTileStatic TavernTile = "[]"
-printTileStatic (MineTile _) = "$-"
-printTileStatic _ = "  "
-
-
 newtype GameId = GameId { gameid :: Text }
     deriving (Show, Read, Eq, Ord)
 
@@ -357,7 +316,7 @@ data Game = Game {
   , _gameHeroes   :: HashMap HeroId Hero
   , _gameBoard    :: !Board
   , _gameFinished :: Bool
-} deriving (Show, Read, Eq)
+  } deriving (Show, Read, Eq)
 
 $(makeLenses ''Game)
 
@@ -380,29 +339,6 @@ instance FromJSON Game where
 --
 heroKillZone :: Game -> Hero -> HashSet Pos
 heroKillZone g h = HashSet.insert (h.>heroPos) $ boardAdjascentAvail (h.>heroPos) (g.>gameBoard)
-
-printHeroStats :: Game -> Text
-printHeroStats g@Game{..} =
-  let
-    hs = sortBy (compare`on`_heroId) $ HashMap.elems $ g^.gameHeroes
-  in
-  execWriter $ do
-    tell $ "HeroId "
-    forM_ hs $ \h -> do
-      tell $ (heroColor (h.>heroId)) <> (tpack $ printf "%20s" (Text.take 10 $ h^.heroName)) <> clrDef
-    tell "\n\n"
-    tell $ "Life "
-    forM_ hs $ \h -> do
-      tell $ tpack $ printf "%20s" (show $ h.>heroLife)
-    tell "\n"
-    tell $ "Gold "
-    forM_ hs $ \h -> do
-      tell $ tpack $ printf "%20s" (show $ h.>heroGold)
-    tell "\n"
-    tell $ "Mines "
-    forM_ hs $ \h -> do
-      tell $ tpack $ printf "%20s" (show $ h.>heroMineCount)
-    tell "\n"
 
 heroMines :: HeroId -> Game -> Integer
 heroMines h g = maybe 0 (view heroMineCount) (HashMap.lookup h (g^.gameHeroes))
@@ -428,9 +364,6 @@ overWealth g h =
   case raiting of
     (h':_) -> h^.heroMineCount - h'^.heroMineCount
     [] -> h^.heroMineCount
-
-printGame g = drawBoard' (g.>gameBoard) []
-drawGame' g xs = drawBoard' (g.>gameBoard) xs
 
 -- | Calculate list of enemies, ordered by (elo,income)
 gameEnemies :: Game -> Hero -> [Hero]
@@ -496,26 +429,27 @@ gameSetHero g hid p =
   Lens.set (gameBoard.bo_tiles.(idx (h.>heroPos))) FreeTile $
   Lens.set (gameBoard.bo_tiles.(idx p)) (HeroTile (h.>heroId)) g
 
-data ServerState = ServerState {
+data GameState = GameState {
     _stateGame    :: !Game
   , _stateHero    :: !Hero
   , _stateToken   :: Text
   , _stateViewUrl :: Text
   , _statePlayUrl :: Text
   , _stateJSON    :: Aeson.Value
-} deriving (Read, Show)
+  } deriving (Read, Show)
 
-$(makeLenses ''ServerState)
+$(makeLenses ''GameState)
 
-instance FromJSON ServerState where
-    parseJSON (Aeson.Object o) = ServerState <$> o .: "game"
-                                 <*> o .: "hero"
-                                 <*> o .: "token"
-                                 <*> o .: "viewUrl"
-                                 <*> o .: "playUrl"
-                                 <*> pure (Aeson.Object o)
+instance FromJSON GameState where
+    parseJSON (Aeson.Object o) =
+      GameState
+        <$> o .: "game"
+        <*> o .: "hero"
+        <*> o .: "token"
+        <*> o .: "viewUrl"
+        <*> o .: "playUrl"
+        <*> pure (Aeson.Object o)
     parseJSON _ = mzero
-
 
 
 class Accessible s a | s -> a where

@@ -19,15 +19,11 @@ library
   build-depends:       base >=4.9 && <5.0,
                        stm,
                        mtl,
-                       MonadRandom,
                        lens,
                        containers,
                        hashable,
                        text,
-                       random,
-                       mersenne-random-pure64,
                        directory,
-                       heredocs,
                        pretty-show,
                        http-client,
                        http-types,
@@ -38,7 +34,6 @@ library
                        filepath,
                        bytestring,
                        unix,
-                       rdtsc,
                        process,
                        pqueue,
                        deepseq,
@@ -49,18 +44,11 @@ library
   exposed-modules:     Client
                        Types
                        Imports
-                       Perf
                        Sim
                        Monad
                        Util
-                       MA
                        Driver
-                       Args
-                       Sigint
-
-                       Control.Break
-                       Control.Monad.Interrupt
-                       Control.Monad.Rnd
+                       Cli
 
   hs-source-dirs:      src,lib
   default-language:    Haskell2010
