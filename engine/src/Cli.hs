@@ -125,8 +125,8 @@ unbufferStdin = hSetBuffering stdin NoBuffering
 -- | Let the user iterate through game records. Optional list of games @mgs@.
 -- Default location will be used if Nothing.
 -- Executes @exec@ when user press Enter
-drawGameFinder :: FilePath -> Maybe [FilePath] -> (GameState -> IO ()) -> IO ()
-drawGameFinder data_dir mgs execfunc = do
+drawGameFinder :: FilePath -> Maybe [FilePath] -> (Int,Int) -> (GameState -> IO ()) -> IO ()
+drawGameFinder data_dir mgs (i0,j0) execfunc = do
   unbufferStdin
   let d = data_dir
   gs <-
@@ -135,7 +135,7 @@ drawGameFinder data_dir mgs execfunc = do
       Nothing -> do
         map (</> "%04d.json") <$> map (d </>) <$> filter ("game"`isPrefixOf`) <$> getDirectoryContents d
   let imax = length gs
-  flip evalStateT (0::Int, 0::Int) $
+  flip evalStateT (i0::Int, j0::Int) $
     let
       fn i j = printf (gs !! i) j
 
@@ -145,13 +145,13 @@ drawGameFinder data_dir mgs execfunc = do
         clearTerminal
         out [ drawGame (ss.>stateGame) [] ]
         blankLine
-        out [ tpack (fn i j), tshow i, "of", tshow imax ]
+        out [ tpack (fn i j), "address", tshow i <> "," <> tshow j ]
         out [ "Use j/k to iterate through the games" ]
         out [ "Use h/l to iterate through the game moves" ]
         out [ "Use o to execute the decision maker" ]
 
     in do
-    display (0,0)
+    display (i0,j0)
     forever $ do
       (i,j) <- get
       c <- liftIO getChar
