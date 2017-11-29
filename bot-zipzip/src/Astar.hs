@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NondecreasingIndentation #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
@@ -29,19 +30,26 @@ data Path = Path {
   , p_path :: [Pos]
   } deriving(Show,Eq,Ord)
 
+type Length = Integer
+type MaxDist = Integer
+type PathQueue = MinPQueue Length Path
+
+pathInsert p@Path{..} q = MinPQueue.insert (pathLength p) p q
+
 -- | Return last position of a plan, usually a point near mine/tavern/hero
 -- `def` is a default location to return in case of empty plan
 pathLastPos :: Pos -> Path -> Pos
 pathLastPos def Path{..} | null p_path = def
                          | otherwise = last p_path
 
-
 pathLength :: Path -> Integer
 pathLength Path{..} = toInteger $ 1 + length p_path
 
+pathMin :: PathQueue -> Maybe Path
+pathMin q = fmap fst $ MinPQueue.minView q
+
 drawPosList :: [Pos] -> BImage
 drawPosList ps = HashMap.fromList $ ps`zip`(repeat (Right "x "))
-
 
 drawPath :: Path -> BImage
 drawPath Path{..} = drawPosList p_path
@@ -61,9 +69,9 @@ emptyKillZone = mempty
 -- | Searches safe path from the current hero to the position @tgt@, ignore
 -- killzone positions
 --
--- This version uses mean distance, so targets should not be too far from each
--- other.
-safeAstar :: Game -> Hero -> HashSet Pos -> KillZone -> Maybe [Pos]
+-- Note 1: This version uses mean distance across target position, so targets should
+-- not be too far from each other.
+safeAstar :: Game -> Hero -> HashSet Pos -> KillZone -> [[Pos]]
 safeAstar g h tgts kz =
   let
     b = g.>gameBoard
@@ -79,8 +87,7 @@ safeAstar g h tgts kz =
           in
           case (t, safe || not danger) of
             (FreeTile, True) -> HashSet.insert p acc
-            (_, True) -> acc
-            (_, False) -> acc
+            (_, _) -> acc
         )
         HashSet.empty p b
 
@@ -92,98 +99,70 @@ safeAstar g h tgts kz =
 
     from = h^.heroPos
   in
-  aStar near dist1 heu isgoal from
+  maybeToList $ aStar near dist1 heu isgoal from
 
--- | Calls astar towards set of nodes. Returns family of `Path` objects that have
+-- | Call astar towards set of nodes. Returns family of `Path` objects that have
 -- same (shortest) path and different goals.
---
--- FIXME: Fix Astar, allow payload for graph vertexes
-safeAstarNodes' :: Game -> Hero -> HashSet Node -> KillZone -> [Path]
-safeAstarNodes' g h ntgts kz =
-  let
-    gs = foldl' (\acc Node{..} -> HashMap.insertWith (<>) _n_center _n_goals acc) HashMap.empty ntgts
-  in
-  case safeAstar g h (HashSet.map _n_center ntgts) kz of
-    Just pp ->
-      let
-        goals = toList $ gs HashMap.! (if null pp then h.>heroPos else last pp)
-      in
-      map (\g -> Path (g.>go_pos) pp) goals
-    Nothing -> []
+astarNode :: Game -> Hero -> Node -> KillZone -> PathQueue
+astarNode g h node kz =
+  flip3 foldr (safeAstar g h (HashSet.singleton $ node.>n_center) kz) mempty $ \poslist paths2 ->
+    flip3 foldr (node.>n_goals) paths2 $ \goal paths3 ->
+      pathInsert (Path (goal.>go_pos) poslist) paths3
+
+-- | Call astar towards set of nodes. Returns family of `Path` objects that have
+-- same (shortest) path and different goals.
+astarNodes :: Game -> Hero -> HashSet Node -> KillZone -> PathQueue
+astarNodes g h ntgts kz =
+  flip3 foldr ntgts mempty $ \node paths ->
+    (astarNode g h node kz) <> paths
 
 
-posPath :: Game -> Hero -> Pos -> KillZone -> Maybe Path
-posPath g h pos kz =
-  Path pos <$> do
-    safeAstar g h (HashSet.singleton pos) kz
-
--- | Search for shortest path, return path per goal
-nodesPath :: Game -> Hero -> HashSet Node -> [Path]
-nodesPath g h t = safeAstarNodes' g h t (enemiesKillZone g h)
-
--- | Search for shortest path, return path per goal (unsafe)
-nodesPathUnsafe :: Game -> Hero -> HashSet Node -> [Path]
-nodesPathUnsafe g h t = safeAstarNodes' g h t emptyKillZone
+-- | Search a path to a position @pos@, with respect to killzone @kz@
+astarPos :: Game -> Hero -> Pos -> KillZone -> PathQueue
+astarPos g h pos kz =
+  flip3 foldr (safeAstar g h (HashSet.singleton pos) kz) mempty $ \poslist q ->
+    pathInsert (Path pos poslist) q
 
 
 -- | Calls astar towards specific hero
-heroPath :: Game -> Hero -> Hero -> Maybe Path
-heroPath g h h' =
-  Path (h'.>heroPos) <$> do
-    safeAstar g h (gameAdjascentAvail (h'.>heroPos) g) (enemiesKillZone g h)
+heroPath :: Game -> Hero -> Hero -> KillZone -> PathQueue
+heroPath g h h' kz =
+  flip3 foldr (safeAstar g h (gameAdjascentAvail (h'.>heroPos) g) kz) mempty $ \poslist q ->
+    pathInsert (Path (h'.>heroPos) poslist) q
 
--- | Calls astar towards specific hero (unsafe)
-heroPathUnsafe :: Game -> Hero -> Hero -> Maybe Path
-heroPathUnsafe g h h' =
-  Path (h'.>heroPos) <$> do
-    safeAstar g h (gameAdjascentAvail (h'.>heroPos) g) emptyKillZone
+-- | Search for nearby mines available for capturing
+nearestMines :: Game -> Hero -> ClusterMap Mines -> KillZone -> PathQueue
+nearestMines g h cm kz =
+  flip4 foldClusters cm (h.>heroPos) mempty $ \d cluster mpq -> if
+    | d>2 && (not $ null mpq) -> mpq
+    | otherwise ->
+      let
+        hid = h.>heroId
 
-
-type Length = Integer
-type MaxDist = Integer
-
--- | Searches for nearby mines available for capturing
-nearestMines' :: Game -> Hero -> ClusterMap Mines -> KillZone -> MinPQueue Length Path
-nearestMines' g h cm kz = foldClusters cm f mempty (h.>heroPos) where
-  f mpq d c
-    | d > 2 = mpq
-    | otherwise =
-        let
-          hid = h.>heroId
-
-          nodes =
-            foldl' (\acc n ->
-              let
-                goals = flip HashSet.filter (n.>n_goals) $ \go ->
-                  ((g.>gameTiles) HashMap.! (go.>go_pos)) /= MineTile (Just hid)
-              in
-              case HashSet.null goals of
-                False -> HashSet.insert n{_n_goals = goals} acc
-                True -> acc
-              ) mempty (c.>c_nodes)
-        in
-        foldl' (\acc path -> MinPQueue.insert (pathLength path) path acc)
-               mpq (safeAstarNodes' g h nodes kz)
-
-nearestMines g h cm = nearestMines' g h cm (enemiesKillZone g h)
-
-nearestMinesUnsafe g h cm = nearestMines' g h cm (emptyKillZone)
+        noncaptured_nodes =
+          flip3 foldr (cluster.>c_nodes) mempty $ \n acc ->
+            let
+              goals = flip HashSet.filter (n.>n_goals) $ \go ->
+                ((g.>gameTiles) HashMap.! (go.>go_pos)) /= MineTile (Just hid)
+            in
+            case HashSet.null goals of
+              False -> HashSet.insert n{_n_goals = goals} acc
+              True -> acc {- skip this cluster -}
+      in
+      flip3 foldr (astarNodes g h noncaptured_nodes kz) mpq $ \path acc ->
+        MinPQueue.insert (pathLength path) path acc
 
 
-
-
+-- | Search for nearest taverns, with respect to killZone @kz@
 -- FIXME: looks like adjucent taverns are in the blind spot
-nearestTaverns' :: Game -> Hero -> ClusterMap Tavs -> KillZone -> MinPQueue Length Path
-nearestTaverns' g h ct kz = foldClusters ct f MinPQueue.empty (h.>heroPos) where
-  f mpq d c
-    | d > 2 = mpq
-    | otherwise =
-        foldl' (\acc path -> MinPQueue.insert (pathLength path) path acc)
-               mpq (safeAstarNodes' g h (c.>c_nodes) kz)
+nearestTaverns :: Game -> Hero -> ClusterMap Tavs -> KillZone -> PathQueue
+nearestTaverns g h ct kz =
+  flip4 foldClusters ct (h.>heroPos) MinPQueue.empty $ \d cluster q -> if
+    | d>2 && (not $ null q) -> q
+    | otherwise ->
+        flip3 foldr (astarNodes g h (cluster.>c_nodes) kz) q $ \path q2 ->
+          pathInsert path q2
 
-nearestTaverns g h ct = nearestTaverns' g h ct (enemiesKillZone g h)
-
-nearestTavernsUnsafe g h ct = nearestTaverns' g h ct (emptyKillZone)
 
 
 

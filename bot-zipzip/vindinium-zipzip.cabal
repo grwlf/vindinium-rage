@@ -25,5 +25,10 @@ executable vindinium-zapzap
                        psqueues,
                        hashable,
                        pqueue,
-                       deepseq
+                       deepseq,
+                       flippers,
+                       tasty,
+                       tasty-quickcheck,
+                       tasty-hunit,
+                       QuickCheck
 

@@ -27,15 +27,15 @@ import Cli
 type Reward = Rational
 type HP = Integer
 
-catNodes :: ClusterMap Mines -> Pos -> [Node]
-catNodes cm p =
-  List.map snd $
-  MinPQueue.toAscList $
-  foldClusters cm f MinPQueue.empty p where
-    f q d c = foldl' (\q n ->
-        MinPQueue.insert (d,(n^.n_pos)`sqdist`p) n q
-      )
-      q (c^.c_nodes)
+-- catNodes :: ClusterMap Mines -> Pos -> [Node]
+-- catNodes cm p =
+--   List.map snd $
+--   MinPQueue.toAscList $
+--   foldClusters cm f MinPQueue.empty p where
+--     f q d c = foldl' (\q n ->
+--         MinPQueue.insert (d,(n^.n_pos)`sqdist`p) n q
+--       )
+--       q (c^.c_nodes)
 
 data Time = Time { time_int :: Integer }
   deriving(Show,Eq,Ord,Generic,Hashable)

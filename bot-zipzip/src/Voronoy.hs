@@ -25,17 +25,18 @@ data Goal = Goal {
     _go_id :: Integer
   -- ^ User-defined ID
   , _go_pos :: Pos
+  -- ^ Position of a tavern or a mine or like that
 } deriving(Eq,Show,Ord,Generic,NFData,Hashable)
 
 $(makeLenses ''Goal)
 
--- | Node is an entry point, either to the Mine or to the Tavern. Different
--- nodes may share a single Goal. Single Node may refer to several goals
+-- | Goal entry point. Different nodes may share a single Goal. Single Node may
+-- refer to different goals
 data Node = Node {
     _n_center :: Pos
-  -- ^ Center of a node
+  -- ^ Entry point to nearest goals
   , _n_goals :: HashSet Goal
-  -- ^ Special points near the Node
+  -- ^ Goals, achievable from the _n_center
 } deriving(Eq,Show,Generic,NFData,Hashable)
 
 $(makeLenses ''Node)
@@ -49,6 +50,9 @@ type Group = [Node]
 instance Ord Node where
   compare n1 n2 = (n1^.n_center)`compare`(n2^.n_center)
 
+-- | Make map from entry point to achievable goals
+initNodes :: (MonadState (HashMap Pos (HashSet Goal)) m, Foldable t) =>
+    Board -> Integer -> t Pos -> m ()
 initNodes b oid ps = do
   forM_ ps $ \ pg -> do
     forM_ (boardAdjascentAvail pg b) $ \ p -> do
@@ -183,7 +187,9 @@ type ClusterId = Integer
 
 data Cluster = Cluster {
     _c_nodes :: HashSet Node
+  -- ^ Set of nodes of a cluster
   , _c_square :: Integer
+  -- ^ Square pf a cluster in cells (?)
   , _c_id :: ClusterId
   , _c_letter :: Char
   } deriving(Show, Generic, Hashable, NFData)
@@ -221,8 +227,9 @@ initialClusterMap s = ClusterMap s mempty mempty mempty 0
 
 $(makeLenses ''ClusterMap)
 
-foldClusters :: ClusterMap x -> (a -> Int -> Cluster -> a) -> a -> Pos -> a
-foldClusters cm f a p = go a [(c0,0)] (HashSet.singleton c0) where
+-- | Fold through clusters, starting from the one containing point @p@.
+foldClusters :: (Int -> Cluster -> a -> a) -> a -> Pos -> ClusterMap x -> a
+foldClusters f a p cm = go a [(c0,0)] (HashSet.singleton c0) where
   c0 = clookup cm p
   go a [] _ = a
   go a ((c,depth):cs) visited =
@@ -231,15 +238,19 @@ foldClusters cm f a p = go a [(c0,0)] (HashSet.singleton c0) where
       order' = cs ++ ((HashSet.toList new)`zip`(repeat $ depth+1))
       visited' = visited`mappend`new
     in
-    go (f a depth c) order' visited'
+    go (f depth c a) order' visited'
 
-foldNodes :: ClusterMap x -> (a -> Int -> Node -> a) -> a -> Pos -> a
-foldNodes cm f ini p = foldClusters cm f' ini p where
-  f' acc depth c = foldl (\acc n -> f acc depth n) acc (c^.c_nodes)
+foldNodes :: (Int -> Node -> a -> a) -> a -> Pos -> ClusterMap x -> a
+foldNodes f ini p cm =
+  flip4 foldClusters cm p ini $ \depth c acc ->
+    flip3 foldr (c.>c_nodes) acc $ \n acc ->
+      f depth n acc
 
-foldGoals :: ClusterMap x -> (a -> Int -> (Node,Goal) -> a) -> a -> Pos -> a
-foldGoals cm f ini p = foldNodes cm f' ini p where
-  f' acc depth n = foldl (\acc g -> f acc depth (n,g)) acc (n^.n_goals)
+foldGoals :: (Int -> (Node,Goal) -> a -> a) -> a -> Pos -> ClusterMap x -> a
+foldGoals f ini p cm =
+  flip4 foldNodes cm p ini $ \depth n acc ->
+    flip3 foldr (n.>n_goals) acc $ \g acc ->
+      f depth (n,g) acc
 
 
 -- clookup :: ClusterMap -> Pos -> Cluster

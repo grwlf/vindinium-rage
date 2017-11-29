@@ -1,3 +1,4 @@
 #!/bin/sh
 
-exec ghci -isrc:lib:app:../engine/src:../engine/lib "$SB" "$@"
+cd `dirname $0`
+exec ghci -isrc:lib:app:test:../engine/src:../engine/lib "$@"

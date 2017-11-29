@@ -21,6 +21,7 @@ let
       , lens, mtl, optparse-applicative, pqueue, pretty-show
       , process, psqueues, random, stdenv, stm, text, time
       , transformers, unix, cabal-install, haskdogs, hasktags
+      , flippers, tasty, tasty-quickcheck, tasty-hunit, QuickCheck
       }:
       mkDerivation {
         pname = "bot-zipzip";
@@ -32,7 +33,7 @@ let
           aeson base binary bytestring containers deepseq directory filepath
           hashable heap lens mtl optparse-applicative pqueue
           pretty-show process psqueues random stm text time transformers unix
-          cabal-install vindinium
+          cabal-install vindinium flippers tasty tasty-quickcheck tasty-hunit QuickCheck
         ];
         executableHaskellDepends = [
           aeson base binary bytestring containers lens mtl
