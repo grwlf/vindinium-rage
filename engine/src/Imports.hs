@@ -28,6 +28,7 @@ module Imports (
   , module Data.Monoid
   , module Data.Set
   , module Data.Function
+  , module Data.Function.Flippers
   , module Data.Foldable
   , module Data.Text
   , module Data.HashSet
@@ -79,6 +80,7 @@ import Data.Hashable
 import Data.Monoid ((<>))
 import Data.Foldable
 import Data.Function
+import Data.Function.Flippers
 import Data.Text (Text)
 import Data.Time.Clock
 import Data.Time.Calendar

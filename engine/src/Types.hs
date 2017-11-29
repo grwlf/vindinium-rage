@@ -74,6 +74,10 @@ isMovableTile = \case
   HeroTile _ -> True
   _ -> False
 
+isHeroTile :: Tile -> Bool
+isHeroTile (HeroTile _) = True
+isHeroTile _ = False
+
 data Dir = Stay | North | South | East | West
     deriving (Show, Read, Eq, Ord, Generic, Hashable, NFData, Enum, Bounded, Binary)
 
@@ -169,8 +173,12 @@ nullBoard sz = Board sz HashMap.empty HashSet.empty HashSet.empty HashMap.empty
 
 $(makeLenses ''Board)
 
+boardPositions :: Board -> [Pos]
 boardPositions Board{..} = [ (Pos x y) | x <- [0.._bo_size-1], y <- [0.._bo_size-1]]
+
+boardTiles :: Board -> [Tile]
 boardTiles b = map (view bo_tiles b HashMap.!) (boardPositions b)
+
 boardMovableTiles b = HashMap.size $ HashMap.filter isMovableTile $ b^.bo_tiles
 
 boardAvailPositions b =

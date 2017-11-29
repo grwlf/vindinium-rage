@@ -39,7 +39,8 @@ library
                        deepseq,
                        binary,
                        psqueues,
-                       unordered-containers
+                       unordered-containers,
+                       flippers
 
   exposed-modules:     Client
                        Types

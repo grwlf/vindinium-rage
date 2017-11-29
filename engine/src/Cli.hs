@@ -50,10 +50,14 @@ drawBoard Board{..} heroes maps =
         def = printTileC t
         def_ = sp $ printTile t
       in
-      case (t, fromMaybe (Right (sp def)) $ msum (map (HashMap.lookup p) maps)) of
-        (_, Left clr) -> clr <> (sp def_) <> clrDef
-        (_, Right new) -> (sp new)
-        (HeroTile _, _) -> def
+      case msum (map (HashMap.lookup p) maps) of
+        Nothing
+          | p`elem`hsp && t==FreeTile -> ". "
+          | otherwise -> printTileC t
+        Just (Left clr)
+          | p`elem`hsp && t==FreeTile -> clr <> ". " <> clrDef
+          | otherwise -> clr <> printTile t <> clrDef
+        Just (Right new) -> new
 
 printBoard b = drawBoard b []
 
@@ -121,6 +125,7 @@ printHeroStats g@Game{..} =
       tell $ tpack $ printf "%20s" (show $ h.>heroMineCount)
     tell "\n"
 
+drawGame :: Game -> [BImage] -> Text
 drawGame g xs = drawBoard (g.>gameBoard) (HashMap.elems $ g.>gameHeroes) xs
 
 unbufferStdin = hSetBuffering stdin NoBuffering

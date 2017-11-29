@@ -78,6 +78,7 @@ let
       , http-types, lens, mtl, optparse-applicative, pqueue, pretty-show
       , process, psqueues, random, stdenv, stm, text, time
       , transformers, unix, cabal-install, haskdogs, hasktags
+      , flippers, tasty, tasty-quickcheck, tasty-hunit, QuickCheck
       }:
       mkDerivation {
         pname = "vindinium-bot";
@@ -90,7 +91,8 @@ let
           hashable heap http-client http-types lens
           mtl optparse-applicative pqueue
           pretty-show process psqueues random stm text time
-          transformers unix cabal-install
+          transformers unix cabal-install flippers
+          tasty tasty-quickcheck tasty-hunit QuickCheck
         ];
         executableHaskellDepends = [
           aeson base binary bytestring containers lens mtl
