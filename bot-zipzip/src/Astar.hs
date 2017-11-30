@@ -133,28 +133,17 @@ heroPath g h h' kz =
 -- | Search for nearby mines available for capturing
 nearestMines :: Game -> Hero -> ClusterMap Mines -> KillZone -> PathQueue
 nearestMines g h cm kz =
-  flip4 foldClusters cm (h.>heroPos) mempty $ \d cluster mpq -> if
-    | d>2 && (not $ null mpq) -> mpq
+  flip4 foldGoals cm (h.>heroPos) mempty $ \d (node,goal) acc -> if
+    | d>2 && (not $ null acc) -> acc
+    | ((g.>gameTiles) HashMap.! (goal.>go_pos)) == MineTile (Just $ h.>heroId) -> acc
     | otherwise ->
-      let
-        hid = h.>heroId
-
-        noncaptured_nodes =
-          flip3 foldr (cluster.>c_nodes) mempty $ \n acc ->
-            let
-              goals = flip HashSet.filter (n.>n_goals) $ \go ->
-                ((g.>gameTiles) HashMap.! (go.>go_pos)) /= MineTile (Just hid)
-            in
-            case HashSet.null goals of
-              False -> HashSet.insert n{_n_goals = goals} acc
-              True -> acc {- skip this cluster -}
-      in
-      flip3 foldr (astarNodes g h noncaptured_nodes kz) mpq $ \path acc ->
-        MinPQueue.insert (pathLength path) path acc
+      flip3 foldr (astarNode g h node kz) acc $ \path acc2 ->
+        MinPQueue.insert (pathLength path) path acc2
 
 
 -- | Search for nearest taverns, with respect to killZone @kz@
--- FIXME: looks like adjucent taverns are in the blind spot
+-- FIXME * looks like adjucent taverns were in zapzap's blind spot, check the
+-- FIXME   current behaviour
 nearestTaverns :: Game -> Hero -> ClusterMap Tavs -> KillZone -> PathQueue
 nearestTaverns g h ct kz =
   flip4 foldClusters ct (h.>heroPos) MinPQueue.empty $ \d cluster q -> if
