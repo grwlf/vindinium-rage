@@ -209,6 +209,7 @@ killPlan g h h' clt
 
       likelywin
         | runaway = False
+        | (maybe False (<=1) h't'len) && (h'.>heroGold)>1 && ((h'.>heroLife)>20) = False
         | (h.>heroPos) == (h.>heroSpawnPos) = True
         | (recdist (h'.>heroPos) (h.>heroSpawnPos)) <= 1 = True
         | (recdist (h.>heroPos) (h'.>heroSpawnPos)) <= 1 = False
