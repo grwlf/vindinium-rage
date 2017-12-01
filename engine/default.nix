@@ -140,7 +140,7 @@ let
         executableHaskellDepends = [
           aeson base binary bytestring containers lens mtl
           optparse-applicative text unix haskdogs hasktags
-          thrift
+          thrift pkgs.thrift
         ];
         license = stdenv.lib.licenses.mit;
 
