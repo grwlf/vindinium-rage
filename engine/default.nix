@@ -1,4 +1,4 @@
-{ nixpkgs ? import <nixpkgs> {}, compiler ? "ghc801", build ? false }:
+{ nixpkgs ? import ../nixpkgs {}, compiler ? "ghc802", build ? false }:
 
 let
 
@@ -71,6 +71,20 @@ let
     (type == "directory" && (baseName == "dist" || baseName == ".git")) ||
     false
     );
+
+  "tensorflow-proto" = haskellPackages.callPackage
+    ({ stdenv, mkDerivation, base, Cabal, proto-lens, proto-lens-protoc, protobufc, protobuf }:
+     mkDerivation {
+       pname = "tensorflow-proto";
+       version = "0.1.0.0";
+       sha256 = "06k87dvpsf8pnbb1qq5gjxpjc2sra95y1bwmsnpmlg1qn0ppi5mn";
+       setupHaskellDepends = [ base Cabal proto-lens-protoc protobufc protobuf ];
+       libraryHaskellDepends = [ base proto-lens proto-lens-protoc protobufc protobuf ];
+       buildDepends = [protobufc protobuf];
+       homepage = "https://github.com/tensorflow/haskell#readme";
+       description = "TensorFlow protocol buffers";
+       license = stdenv.lib.licenses.asl20;
+     }) {};
 
   vindinium = haskellPackages.callPackage
       ({ mkDerivation, aeson, base, binary, bytestring, containers

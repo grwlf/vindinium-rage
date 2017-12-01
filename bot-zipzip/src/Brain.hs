@@ -23,66 +23,33 @@ import Voronoy
 import Astar
 import Cli
 
--- type Length = Integer
-type Reward = Rational
-type HP = Integer
-
--- catNodes :: ClusterMap Mines -> Pos -> [Node]
--- catNodes cm p =
---   List.map snd $
---   MinPQueue.toAscList $
---   foldClusters cm f MinPQueue.empty p where
---     f q d c = foldl' (\q n ->
---         MinPQueue.insert (d,(n^.n_pos)`sqdist`p) n q
---       )
---       q (c^.c_nodes)
-
 data Time = Time { time_int :: Integer }
   deriving(Show,Eq,Ord,Generic,Hashable)
 
-data WealthEvt = WealthEvt {
-    we_dmines :: Integer
-  , we_dlife :: Integer
-  , we_spedings :: Integer
-  -- ^ Additional money spendings (e.g. drinking)
-  } deriving(Show)
+type Reward = Rational
 
-zeroWealthEvt = WealthEvt 0 0 0
+gameTimeLeft :: Game -> Integer
+gameTimeLeft g = (g.>gameMaxTurns) - (g.>gameTurn)
 
--- Absolute reward
-gameRewardAbs :: Game -> Hero -> HashMap HeroId (Time,WealthEvt) -> Reward
-gameRewardAbs g hh evts =
-  let
-    rm = foldl f mempty (g.>gameHeroes) where
-      f acc h =
-        let
-          Game{..} = g
-          (Time{..},WealthEvt{..}) =
-            fromMaybe (Time 1,zeroWealthEvt) $
-            HashMap.lookup (h.>heroId) evts
+fi :: (Num a) => Integer -> a
+fi = fromInteger
 
-          ta,tb :: Rational
-          ta = fromInteger time_int -- time from now to event
-          tb = fromInteger (_gameMaxTurns - _gameTurn - time_int) -- time from event to end of game
+gameReward1 :: Game -> Hero -> Reward
+gameReward1 g h =
+     (fi (h.>heroGold))
+   + (fi (h.>heroMineCount) * fi (gameTimeLeft g))
+   + (fi (h.>heroLife) / 20.0)
 
-          r =
-             (fromInteger $ h.>heroGold)
-           + (fromInteger (h.>heroMineCount)) * ta
-           + (fromInteger (h.>heroMineCount + we_dmines)) * tb
-           + ((fromInteger (we_spedings)) / ta) * 0.01
-           + ((fromInteger (we_dlife)) / ta) * 0.01
+gameReward :: Game -> Hero -> Reward
+gameReward g h = reward1 + leaderbonus
+  where
+    reward1 = gameReward1 g h
+    leaderbonus =
+      flip3 foldr (gameEnemies g h) 0 $ \h' acc ->
+        acc + (if reward1 > (gameReward1 g h') then 20 else 0)
 
-        in
-        (Map.insert (h.>heroId) r acc)
 
-    (leaderHid, leaderRew) = Map.findMax rm
-
-    rew = rm Map.! (hh.>heroId)
-  in
-  case leaderHid == hh.>heroId of
-    True -> rew
-    False -> rew - leaderRew*0.001
-
+{-
 gameRewardRel :: Game -> Hero -> HashMap HeroId (Time,WealthEvt) -> Reward
 gameRewardRel g hh evts =
   let
@@ -424,3 +391,4 @@ moveIO bs@BotIO{..} gs = do
     Nothing -> do
       return (Stay, mempty)
 
+-}

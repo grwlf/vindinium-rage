@@ -93,13 +93,9 @@ tests = testGroup "Astar Tests" [
       let
         (g,h,cm,ct) = testGame1 [
            {- 0 1 2 3 4 5 6 -}
-            "##############"
-           ,"##          ##"
-           ,"##          ##"
-           ,"##          ##"
-           ,"######      ##"
-           ,"##@1[]      ##"
-           ,"##############"]
+            "######"
+           ,"##@1[]"
+           ,"######"]
 
         ps = MinPQueue.elems $ nearestTaverns g h ct emptyKillZone
         path = ps !! 0
