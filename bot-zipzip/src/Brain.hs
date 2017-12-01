@@ -26,19 +26,16 @@ import Cli
 data Time = Time { time_int :: Integer }
   deriving(Show,Eq,Ord,Generic,Hashable)
 
-type Reward = Rational
+type Reward = Double
 
 gameTimeLeft :: Game -> Integer
 gameTimeLeft g = (g.>gameMaxTurns) - (g.>gameTurn)
 
-fi :: (Num a) => Integer -> a
-fi = fromInteger
-
 gameReward1 :: Game -> Hero -> Reward
 gameReward1 g h =
-     (fi (h.>heroGold))
-   + (fi (h.>heroMineCount) * fi (gameTimeLeft g))
-   + (fi (h.>heroLife) / 20.0)
+     (n2d (h.>heroGold))
+   + (n2d (h.>heroMineCount) * n2d (gameTimeLeft g))
+   + (n2d (h.>heroLife) / 20.0)
 
 gameReward :: Game -> Hero -> Reward
 gameReward g h = reward1 + leaderbonus
@@ -46,97 +43,49 @@ gameReward g h = reward1 + leaderbonus
     reward1 = gameReward1 g h
     leaderbonus =
       flip3 foldr (gameEnemies g h) 0 $ \h' acc ->
-        acc + (if reward1 > (gameReward1 g h') then 20 else 0)
+        acc + (if reward1 > (gameReward1 g h') then 20.0 else 0.0)
 
-
-{-
-gameRewardRel :: Game -> Hero -> HashMap HeroId (Time,WealthEvt) -> Reward
-gameRewardRel g hh evts =
-  let
-    (rm,rmax) = foldl f (mempty,0) (g.>gameHeroes) where
-      f (rm,rmax) h =
-        let
-          Game{..} = g
-          (Time{..},WealthEvt{..}) =
-            fromMaybe (Time 1,zeroWealthEvt) $
-            HashMap.lookup (h.>heroId) evts
-
-          t :: Rational
-          t = fromInteger $ time_int
-
-          hm :: Rational
-          hm = fromInteger $ h.>heroMineCount
-
-          hl :: Rational
-          hl = fromInteger $ h.>heroLife
-
-          r =
-             ((fromInteger we_dmines) / t)
-           + ((fromInteger we_dlife) / t)*0.01
-
-        in
-        (HashMap.insert (h.>heroId) r rm, if h`sameid`hh then rmax else r`max`rmax)
-  in
-  ((rm) HashMap.! (hh.>heroId)) - rmax*0.1
-
-gameReward = gameRewardAbs
-
-drawPath :: Path -> BImage
-drawPath Path{..} = drawPosList p_path
-
--- | TODO: place `Path` inside plan
 data Plan = Plan {
-    goPos :: Pos
-  -- ^ Path destination, often it is a cell near the tavern/hero
-  , goPath :: [Pos]
+    planPath :: Path
   -- ^ Plan waypoints except probably the destination
-  , goTile :: Tile
+  , planTile :: Tile
   -- ^ Tile to go
-  , goReward :: Reward
-  -- ^ Plan reward
   } deriving(Show)
 
+planTgt = p_pos . planPath
+
+drawPlan :: Plan -> BImage
+drawPlan Plan{..} = drawPath planPath
+
 planLastPos :: Pos -> Plan -> Pos
-planLastPos def Plan{..} = pathLastPos def (Path goPos goPath)
+planLastPos def Plan{..} = pathLastPos def planPath
 
 planStep :: Pos -> Plan -> Dir
 planStep p Plan{..} =
-  case goPath of
+  case p_path planPath of
     (p':ps) -> posDiff p p'
-    [] -> posDiff p goPos
-
-drawPlan :: Plan -> BImage
-drawPlan Plan{..} = drawPosList goPath -- <> (hmap1 goPos "X ")
+    [] -> posDiff p (p_pos planPath)
 
 type PlanQueue = MaxPQueue Reward Plan
 
-describePlan :: Plan -> Text
-describePlan Plan{..} = (printTileC goTile) <> "," <> (rshow "%0.3f" goReward)
+describePlan :: Reward -> Plan -> Text
+describePlan r Plan{..} = (printTileC planTile) <> "," <> (rshow "%0.3f" r)
 
 describePlans :: PlanQueue -> Text
 describePlans pq =
   execWriter $ do
     forM_ (MaxPQueue.toDescList pq) $ \(rew,p) -> do
-      tell $ describePlan p <> " "
-
+      tell $ describePlan rew p <> " "
 
 drawGamePlans :: PlanQueue -> BImage
 drawGamePlans plans =
   HashMap.fromList $
-      (flip map (ptake 5 plans) $ \(rew,Plan{..}) ->
-        (goPos, Left clrDef_White))
-      <> (maybe [] (\p ->[(goPos p, Left clrDef_Red)]) (pmax plans))
+      (flip map (ptake 5 plans) $ \(rew,plan@Plan{..}) ->
+        (planTgt plan, Left clrDef_White))
+      <> (maybe [] (\p ->[(planTgt p, Left clrDef_Red)]) (pmax plans))
 
 
-ptake :: (Ord k) => Int -> MaxPQueue k a -> [(k,a)]
-ptake n q = MaxPQueue.take n q
-
-pmax :: (Ord k) => MaxPQueue k a -> Maybe a
-pmax q = fmap fst $ MaxPQueue.maxView q
-
-pmin :: (Ord k) => MinPQueue k a -> Maybe a
-pmin q = fmap fst $ MinPQueue.minView q
-
+{-
 
 killPlan :: Game -> Hero -> Hero -> ClusterMap Tavs -> Maybe Plan
 killPlan g h h' clt
