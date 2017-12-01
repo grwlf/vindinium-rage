@@ -67,6 +67,34 @@ let
        license = stdenv.lib.licenses.mit;
      }) {};
 
+  "thrift" = haskellPackages.callPackage
+    ({ mkDerivation, attoparsec, base, base64-bytestring, binary
+     , bytestring, containers, ghc-prim, hashable, hspec, HTTP, network
+     , network-uri, QuickCheck, split, text, unordered-containers
+     , stdenv, vector
+     }:
+     mkDerivation {
+       pname = "thrift";
+       version = "0.10.0";
+       sha256 = "01vxik64gnsnm0y9mh82dv48f711231dhc4kksdmgs7f352fc1k7";
+       libraryHaskellDepends = [
+         attoparsec base base64-bytestring binary bytestring containers
+         ghc-prim hashable HTTP network network-uri QuickCheck split text
+         unordered-containers vector
+       ];
+       testHaskellDepends = [
+         base bytestring hspec QuickCheck unordered-containers
+       ];
+       homepage = "http://thrift.apache.org";
+       description = "Haskell bindings for the Apache Thrift RPC system";
+       license = "unknown";
+       hydraPlatforms = stdenv.lib.platforms.none;
+       patchPhase = ''
+        sed -i 's/0.10.12.2/0.12.0.1/g' thrift.cabal
+       '';
+       doCheck = false;
+     }) {};
+
   distSourceFilter = name: type: let baseName = baseNameOf (toString name); in ! (
     (type == "directory" && (baseName == "dist" || baseName == ".git")) ||
     false
@@ -107,10 +135,12 @@ let
           pretty-show process psqueues random stm text time
           transformers unix cabal-install flippers
           tasty tasty-quickcheck tasty-hunit QuickCheck
+          thrift
         ];
         executableHaskellDepends = [
           aeson base binary bytestring containers lens mtl
           optparse-applicative text unix haskdogs hasktags
+          thrift
         ];
         license = stdenv.lib.licenses.mit;
 
