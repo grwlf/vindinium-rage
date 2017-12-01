@@ -8,6 +8,24 @@ let
                        then pkgs.haskellPackages
                        else pkgs.haskell.packages.${compiler};
 
+  self = pkgs.python3Packages;
+  inherit (self) buildPythonPackage fetchPypi;
+
+  namedlist = buildPythonPackage rec {
+    name = "namedlist-${version}";
+    version = "1.8a2";
+
+    buildInputs = with self; [ ];
+
+    doCheck = false;
+
+    src = pkgs.fetchhg {
+      url = "https://bitbucket.org/ericvsmith/namedlist";
+      rev = "8db03a94fcc15184ccdf7a58f91c48bc5bcd3331";
+      sha256 = "1vpraic297jv3qf8z0nmn1ifjzmf0nq364hnh47afq8wzkpfmxfc";
+    };
+  };
+
   "mersenne-random-pure64" =
     { mkDerivation, base, random, time }:
      mkDerivation {
@@ -141,7 +159,35 @@ let
           aeson base binary bytestring containers lens mtl
           optparse-applicative text unix haskdogs hasktags
           thrift pkgs.thrift
-        ];
+          ] ++
+          (with pkgs; with self; [
+            cairocffi
+            git-lfs
+            gitFull
+            gobjectIntrospection
+            gtk3
+            httplib2
+            ipython
+            joblib
+            Keras
+            matplotlib
+            mypy
+            namedlist
+            numpy
+            pandas
+            pkgs.sqlite
+            pygobject3
+            pyqt5
+            python
+            requests
+            rlwrap
+            scikitlearn
+            scipy
+            sqliteman
+            tensorflow
+            ipdb
+            ]);
+
         license = stdenv.lib.licenses.mit;
 
         shellHook=''
