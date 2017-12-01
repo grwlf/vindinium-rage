@@ -427,15 +427,14 @@ isNearEnemy g h = gameAdjascent f False (h.>heroPos) g where
   f False ((HeroTile _),_) = True
   f False _ = False
 
-
-
+gameSetHero :: Game -> HeroId -> Pos -> Game
 gameSetHero g hid p =
   let
     h = g.>gameHeroes.(idx hid)
   in
-  Lens.set (gameHeroes.(idx (HeroId 2)).heroPos) p $
+  Lens.set (gameHeroes.(idx hid).heroPos) p $
   Lens.set (gameBoard.bo_tiles.(idx (h.>heroPos))) FreeTile $
-  Lens.set (gameBoard.bo_tiles.(idx p)) (HeroTile (h.>heroId)) g
+  Lens.set (gameBoard.bo_tiles.(idx p)) (HeroTile (h.>heroId)) $ g
 
 data GameState = GameState {
     _stateGame    :: !Game

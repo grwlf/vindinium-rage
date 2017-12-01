@@ -70,10 +70,10 @@ import Data.Bits
 import Data.Ratio
 import Data.Tuple
 import Data.List hiding (break)
-import Data.Map.Strict (Map, (!))
+import Data.Map.Strict (Map)
 import Data.Set (Set,member)
 import Data.HashSet (HashSet)
-import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict (HashMap, (!))
 import Data.Maybe
 import Data.Binary hiding (get,put)
 import Data.Hashable
@@ -87,7 +87,9 @@ import Data.Time.Calendar
 import Data.Time(diffUTCTime,getCurrentTime,UTCTime,NominalDiffTime)
 import Data.Aeson(FromJSON(..),ToJSON(..),(.:),(.:?),(.=))
 import Data.PQueue.Prio.Min (MinPQueue)
+import qualified Data.PQueue.Prio.Min as MinPQueue
 import Data.PQueue.Prio.Max (MaxPQueue)
+import qualified Data.PQueue.Prio.Max as MaxPQueue
 import Debug.Trace hiding(traceM)
 import Prelude hiding(break,print)
 import System.Directory (removeDirectoryRecursive,createDirectoryIfMissing,renameFile,getDirectoryContents)
@@ -123,6 +125,9 @@ assert x b = if not b then error (show x) else return ()
 
 {- Text -}
 
+tpshow :: (Show a) => a -> Text
+tpshow = Text.pack . ppShow
+
 tshow :: (Show a) => a -> Text
 tshow = Text.pack . show
 
@@ -137,6 +142,14 @@ tpack = Text.pack
 
 tunpack :: Text -> String
 tunpack = Text.unpack
+
+{- Numbers -}
+
+fi :: (Num a) => Integer -> a
+fi = fromInteger
+
+n2d :: (Real a) => a -> Double
+n2d = fromRational . toRational
 
 {- Containers -}
 
@@ -187,3 +200,13 @@ whileM m = do
     Nothing -> whileM m
     Just x -> return x
 
+{- PrioQueues -}
+
+ptake :: (Ord k) => Int -> MaxPQueue k a -> [(k,a)]
+ptake n q = MaxPQueue.take n q
+
+pmax :: (Ord k) => MaxPQueue k a -> Maybe a
+pmax q = fmap fst $ MaxPQueue.maxView q
+
+pmin :: (Ord k) => MinPQueue k a -> Maybe a
+pmin q = fmap fst $ MinPQueue.minView q

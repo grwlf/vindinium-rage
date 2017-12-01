@@ -3,7 +3,12 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NondecreasingIndentation #-}
-module Sim (sim, sim') where
+module Sim (
+    sim, sim'
+  , simGrabMine
+  , simKillHero
+  , simMoveHero
+  ) where
 
 import qualified Data.List as List
 import qualified Data.HashSet as HashSet
@@ -53,6 +58,9 @@ moveHero hid p' = do
   tiles.(idx p') %= const (HeroTile hid)
   (hero hid).heroPos %= const p'
 
+simMoveHero :: Game -> Hero -> Pos -> Game
+simMoveHero g h pos = (execState (moveHero (h.>heroId) pos) (SimState mempty g)).>ss_game
+
 grabMine :: HeroId -> Pos -> Sim ()
 grabMine hid p = do
   mine <- (HashMap.!p) <$> use tiles
@@ -82,6 +90,10 @@ grabMine hid p = do
           mines %= HashMap.insertWith (<>) hid (HashSet.singleton p)
     _ -> assert 3 False
 
+
+simGrabMine :: Game -> Hero -> Pos -> Game
+simGrabMine g h pos = (execState (grabMine (h.>heroId) pos) (SimState mempty g)).>ss_game
+
 -- | A @killer@ kills Hero @hid@ (a victim), the result may include chain death
 -- via telefragging
 killHero :: Maybe HeroId -> HeroId -> Sim ()
@@ -110,6 +122,10 @@ killHero killer hid = do
     FreeTile -> return ()
     _ -> assert 2 False
   moveHero hid sp
+
+simKillHero :: Game -> Maybe Hero -> Hero -> Game
+simKillHero g killer h = (execState (killHero ((.>heroId)<$>killer) (h.>heroId)) (SimState mempty g)).>ss_game
+
 
 sim :: HeroId -> Dir -> Game -> Game
 sim hid d g = sim' hid (Just d) False g
