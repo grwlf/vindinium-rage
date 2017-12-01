@@ -1,4 +1,4 @@
-{ nixpkgs ? import ../nixpkgs {}, compiler ? "ghc802", build ? false }:
+{ nixpkgs ? import ../../exming/lib/nixpkgs {}, compiler ? "ghc802", build ? false }:
 
 let
 
@@ -10,6 +10,28 @@ let
 
   self = pkgs.python3Packages;
   inherit (self) buildPythonPackage fetchPypi;
+
+  thrift-py = buildPythonPackage rec {
+    pname = "thrift";
+    name = "${pname}-${version}";
+    version = "0.10.0";
+
+    src = pkgs.fetchurl {
+      url = "http://archive.apache.org/dist/thrift/${version}/${name}.tar.gz";
+      sha256 = "02x1xw0l669idkn6xww39j60kqxzcbmim4mvpb5h9nz8wqnx1292";
+    };
+
+    propagatedBuildInputs = with self; [
+      six
+    ];
+
+    postPatch = ''
+      cd lib/py
+    '';
+
+    # No tests. Breaks when not disabling.
+    doCheck = false;
+  };
 
   namedlist = buildPythonPackage rec {
     name = "namedlist-${version}";
@@ -85,7 +107,7 @@ let
        license = stdenv.lib.licenses.mit;
      }) {};
 
-  "thrift" = haskellPackages.callPackage
+  "thrift-hs" = haskellPackages.callPackage
     ({ mkDerivation, attoparsec, base, base64-bytestring, binary
      , bytestring, containers, ghc-prim, hashable, hspec, HTTP, network
      , network-uri, QuickCheck, split, text, unordered-containers
@@ -153,12 +175,12 @@ let
           pretty-show process psqueues random stm text time
           transformers unix cabal-install flippers
           tasty tasty-quickcheck tasty-hunit QuickCheck
-          thrift
+          thrift-hs
         ];
         executableHaskellDepends = [
           aeson base binary bytestring containers lens mtl
           optparse-applicative text unix haskdogs hasktags
-          thrift pkgs.thrift
+          thrift-hs pkgs.thrift
           ] ++
           (with pkgs; with self; [
             cairocffi
@@ -168,7 +190,6 @@ let
             gtk3
             httplib2
             ipython
-            joblib
             Keras
             matplotlib
             mypy
@@ -186,6 +207,8 @@ let
             sqliteman
             tensorflow
             ipdb
+            joblib
+            thrift-py
             ]);
 
         license = stdenv.lib.licenses.mit;
