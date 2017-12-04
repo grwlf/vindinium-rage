@@ -66,26 +66,90 @@ planStep p Plan{..} =
     (p':ps) -> posDiff p p'
     [] -> posDiff p (p_pos planPath)
 
-type PlanQueue = MaxPQueue Reward Plan
+-- type PlanQueue = MaxPQueue Reward Plan
 
-describePlan :: Reward -> Plan -> Text
-describePlan r Plan{..} = (printTileC planTile) <> "," <> (rshow "%0.3f" r)
+describePlan :: Plan -> Text
+describePlan Plan{..} = (printTileC planTile) <> printPos (p_pos planPath)
 
-describePlans :: PlanQueue -> Text
+describePlans :: (Foldable t) => t Plan -> Text
 describePlans pq =
   execWriter $ do
-    forM_ (MaxPQueue.toDescList pq) $ \(rew,p) -> do
-      tell $ describePlan rew p <> " "
+    forM_ (toList pq) $ \p -> do
+      tell $ describePlan p <> " "
 
-drawGamePlans :: PlanQueue -> BImage
+drawGamePlans :: (Foldable t) => t Plan -> BImage
 drawGamePlans plans =
+  let l = toList plans in
   HashMap.fromList $
-      (flip map (ptake 5 plans) $ \(rew,plan@Plan{..}) ->
+      (flip map (take 5 l) $ \(plan@Plan{..}) ->
         (planTgt plan, Left clrDef_White))
-      <> (maybe [] (\p ->[(planTgt p, Left clrDef_Red)]) (pmax plans))
+      <> [(planTgt (head l), Left clrDef_Red)]
 
+
+-- TODO * measure bot performance per plan
 
 {-
+
+capturePlans :: Game -> Hero -> ClusterMap Mines -> MaxPQueue Reward Plan
+capturePlans g h cm = foldClusters cm f MaxPQueue.empty (h.>heroPos) where
+  f mpq d c
+    | d > 2 = mpq
+    | otherwise =
+        let
+          hid = h.>heroId
+          hl = h.>heroLife
+          hm = h.>heroMineCount
+
+          nodes =
+            foldl' (\acc n ->
+              let
+                goals = flip HashSet.filter (n.>n_goals) $ \go ->
+                  ((g.>gameTiles) HashMap.! (go.>go_pos)) /= MineTile (Just hid)
+              in
+              case HashSet.null goals of
+                False -> HashSet.insert n{_n_goals = goals} acc
+                True -> acc
+              ) mempty (c.>c_nodes)
+
+          danger = fst (nearestEnemy g h) <= 2
+          h' = snd (nearestEnemy g h)
+          h'id = h'.>heroId
+
+        in
+        flip execState mpq $ do
+          forM_ (nodesPath g h nodes) $ \ pp@Path{..} ->
+            let
+              t = Time (pathLength pp)
+              likelywin = (hl - (pathLength pp)) > 21
+
+              adjacent = pathLength pp == 1
+
+              tile = (g.>gameTiles) HashMap.! (p_pos)
+
+              mrew =
+                case (danger, adjacent, likelywin, tile) of
+                  (True, False, False, _) ->
+                    Nothing
+
+                  (_, True, False, _) ->
+                    Just $ gameReward g h (HashMap.fromList [(hid, (t,WealthEvt (-hm) (100-hl) 0))])
+
+                  (False, _, True, MineTile (Just h'id))
+                    | g.>gameHeroes.(idx h'id).heroName == h.>heroName
+                      && (h.>heroMineCount >= 2) -> Nothing
+                    | otherwise ->
+                      Just $ gameReward g h (HashMap.fromList [(hid, (t,WealthEvt 1 (-20) 0)),
+                                                               (h'id, (t,WealthEvt (-1) 0 0)) ])
+                  (False, _, True, MineTile Nothing) ->
+                    Just $ gameReward g h (HashMap.fromList [(hid, (t,WealthEvt 1 (-20) 0))])
+
+                  _ -> Nothing
+            in do
+            case mrew of
+              Just rew ->
+                modify $ MaxPQueue.insert rew (Plan p_pos p_path tile rew)
+              Nothing ->
+                return ()
 
 killPlan :: Game -> Hero -> Hero -> ClusterMap Tavs -> Maybe Plan
 killPlan g h h' clt
