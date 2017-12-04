@@ -44,6 +44,9 @@ instance FromJSON HeroId where
 data Pos = Pos { posX :: Integer , posY :: Integer }
   deriving (Show, Read, Eq, Ord, Generic, Hashable, NFData)
 
+printPos :: Pos -> Text
+printPos p = "(" <> tshow (posX p) <> "," <> tshow (posY p) <> ")"
+
 sqdist :: Pos -> Pos -> Integer
 sqdist a b = (posX a - posX b)^2 + (posY a - posY b)^2
 
