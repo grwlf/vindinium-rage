@@ -19,6 +19,8 @@ import Brain
 import Cli
 import Util
 
+import TF
+
 key :: Key
 key = Key "xkwsliww"
 
