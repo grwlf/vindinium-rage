@@ -22,9 +22,9 @@ import Types hiding (State)
 
 -- | Game location, a tavern or a mine
 data Goal = Goal {
-    _go_id :: Integer
+    _goalId :: Integer
   -- ^ User-defined ID
-  , _go_pos :: Pos
+  , _goalPos :: Pos
   -- ^ Position of a tavern or a mine or like that
 } deriving(Eq,Show,Ord,Generic,NFData,Hashable)
 

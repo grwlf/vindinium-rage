@@ -334,6 +334,9 @@ $(makeLenses ''Game)
 gameTiles :: Lens' Game (HashMap Pos Tile)
 gameTiles = gameBoard.bo_tiles
 
+gameTile :: Game -> Pos -> Tile
+gameTile g pos = g.>gameTiles.(idx pos)
+
 instance FromJSON Game where
     parseJSON (Aeson.Object o) = Game <$> o .: "id"
                                 <*> o .: "turn"

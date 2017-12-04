@@ -107,7 +107,7 @@ astarNode :: Game -> Hero -> Node -> KillZone -> PathQueue
 astarNode g h node kz =
   flip3 foldr (safeAstar g h (HashSet.singleton $ node.>n_center) kz) mempty $ \poslist paths2 ->
     flip3 foldr (node.>n_goals) paths2 $ \goal paths3 ->
-      pathInsert (Path (goal.>go_pos) poslist) paths3
+      pathInsert (Path (goal.>goalPos) poslist) paths3
 
 -- | Call astar towards set of nodes. Returns family of `Path` objects that have
 -- same (shortest) path and different goals.
@@ -135,7 +135,7 @@ nearestMines :: Game -> Hero -> ClusterMap Mines -> KillZone -> PathQueue
 nearestMines g h cm kz =
   flip4 foldGoals cm (h.>heroPos) mempty $ \d (node,goal) acc -> if
     | d>2 && (not $ null acc) -> acc
-    | ((g.>gameTiles) HashMap.! (goal.>go_pos)) == MineTile (Just $ h.>heroId) -> acc
+    | ((g.>gameTiles) HashMap.! (goal.>goalPos)) == MineTile (Just $ h.>heroId) -> acc
     | otherwise ->
       flip3 foldr (astarNode g h node kz) acc $ \path acc2 ->
         MinPQueue.insert (pathLength path) path acc2
