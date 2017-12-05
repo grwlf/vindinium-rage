@@ -111,6 +111,37 @@ capturePlans g h allies cm =
             safeplans (unsafeplans acc)
         otherwise -> acc
 
+type Clustering = (ClusterMap Mines, ClusterMap Tavs)
+
+warmup :: GameState -> Clustering
+warmup gs =
+  let
+    g = gs.>stateGame
+    b = g.>gameBoard
+    cm = clusterize 2 (build b (nodeMines b))
+    ct = clusterize 2 (build b (nodeTavs  b))
+  in
+  (cm,ct)
+
+move :: Clustering -> GameState -> (Dir, [Plan])
+move cls gs = (North, mempty)
+
+warmupIO :: GameState -> IO (MVar Clustering)
+warmupIO gs = do
+  mv <- newEmptyMVar
+  forkIO $ do
+    putMVar mv =<< do
+      evaluate $ force $ warmup gs
+  return mv
+
+moveIO :: (MonadIO m) => MVar Clustering -> GameState -> m (Dir, [Plan])
+moveIO clv gs =
+  liftIO (tryReadMVar clv) >>= \case
+    Just cls -> do
+      return (move cls gs)
+    Nothing -> do
+      return (Stay, mempty)
+
 
 {-
  foldClusters cm f MaxPQueue.empty (h.>heroPos) where

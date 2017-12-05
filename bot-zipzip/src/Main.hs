@@ -19,7 +19,7 @@ import Brain
 import Cli
 import Util
 
-import TF
+-- import TF
 
 key :: Key
 key = Key "xkwsliww"
@@ -27,7 +27,8 @@ key = Key "xkwsliww"
 data Args = Args {
     args_ds :: DriverSettings
   , args_replay_mb :: Maybe String
-  , args_replay_turn :: Int
+  , args_sim_mb :: Maybe String
+  , args_turn :: Int
   } deriving(Show)
 
 getArgs :: IO Args
@@ -41,12 +42,13 @@ getArgs = execParser (info ((
       <*> switch (long "dump-game")
       <*> switch (long "quiet" <> short 'q'))
     <*> (optional (option str (long "replay" <> short 'r')))
+    <*> (optional (option str (long "sim" <> short 's')))
     <*> (read <$> option str (long "turn" <> short 't' <> value "0"))
   ) <**> helper) idm)
 
 data BotState = BotState {
     _bs_perf :: [[NominalDiffTime]]
-  , _bs_bs :: BotIO
+  , _bs_clust :: !(MVar Clustering)
   , _bs_dump :: Bool
   }
 
@@ -66,8 +68,12 @@ main = do
   Args{..} <- getArgs
   DriverSettings{..} <- pure args_ds
 
-  case args_replay_mb of
-    Just args_replay ->
+  case (args_replay_mb, args_sim_mb) of
+    (Nothing, Just args_sim) ->
+      out [ "simulation is to be defined" ]
+      undefined
+
+    (Just args_replay, Nothing) ->
       let
         replay_path =
           case args_replay of
@@ -75,23 +81,21 @@ main = do
             x -> Just [x]
       in do
       out [ "Starting replay mode", tshow replay_path ]
-      drawGameFinder "./data" replay_path (0,args_replay_turn) $ \gs ->
+      drawGameFinder "./data" replay_path (0,args_turn) $ \gs ->
         let
-          b@Bot{..} = force $ warmup gs
-          (dir,plans) = move b gs
+          cls = force $ warmup gs
+          (dir,plans) = move cls gs
           g = gs.>stateGame
           h = gs.>stateHero
         in do
         clearTerminal
         drawGameState "?" gs [ drawGamePlans plans ]
         out [ describePlans plans ]
-        out [ tshow $ killPlan g h (gs.>stateGame.gameHeroes.(idx (HeroId 1))) bot_clt ]
-
+        -- out [ tshow $ killPlan g h (gs.>stateGame.gameHeroes.(idx (HeroId 1))) bot_clt ]
         return ()
 
-    Nothing -> do
-
-      out [ "Starting Vindinium bot, training:", tshow ds_training,
+    (Nothing, Nothing) -> do
+      out [ "Starting Vindinium bot, training mode:", tshow ds_training,
             "Tag", tpack ds_tag ]
 
       driver_net key args_ds $
@@ -121,18 +125,13 @@ main = do
                 p1 <- diffTimeFrom tstart
                 send Stay [p1]
 
-                (dir,plans) <- moveIO (bs.>bs_bs) gs
+                (dir,plans) <- moveIO (bs.>bs_clust) gs
                 p2 <- diffTimeFrom tstart
                 send dir [p1,p2]
 
                 when (not ds_quiet) $
                   let
-
-                    bimg = HashMap.fromList $
-                      (flip map (take 5 $ MaxPQueue.toList plans) $ \(rew,Plan{..}) ->
-                        (goPos, Left clrDef_White))
-                      <> (maybe [] (\p ->[(goPos p, Left clrDef_Red)]) (pmax plans))
-
+                    bimg = drawGamePlans plans
                   in do
                   clearTerminal
                   out [ printHeader ds_tag g h ]
@@ -164,4 +163,6 @@ main = do
                 when (not (bs.>bs_dump)) $ do
                   removeGame ds_tag (gs.>stateGame.gameId) (gs.>stateHero.heroId)
 
+    (_, _) -> do
+      out [ "Invlaid arguments combination, see --help" ]
 
