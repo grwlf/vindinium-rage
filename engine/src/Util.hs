@@ -47,9 +47,9 @@ dumpState tag GameId{..} hid nmove ss = liftIO $ do
   ByteString.writeFile (f++".tmp") (Aeson.encode (ss^.stateJSON))
   renameFile (f++".tmp") f
 
-loadState :: (MonadIO m) => FilePath -> m GameState
-loadState f = liftIO $ do
-  -- let f = "data" </> "hstates" </> nm
+loadState :: (MonadIO m) => FilePath -> Integer -> m GameState
+loadState gamedir nmove = liftIO $ do
+  let f = gamedir </> (printf "%04d.json" nmove)
   fromMaybe (error $ "Faield to decode state " ++ f) <$> Aeson.decode <$> ByteString.readFile f
 
 save :: (MonadIO m, Show a) => String -> a -> m ()

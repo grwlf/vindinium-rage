@@ -129,6 +129,7 @@ drawGame :: Game -> [BImage] -> Text
 drawGame g xs = drawBoard (g.>gameBoard) (HashMap.elems $ g.>gameHeroes) xs
 
 unbufferStdin = hSetBuffering stdin NoBuffering
+unbufferStdout = hSetBuffering stdout NoBuffering
 
 drawGameState :: (MonadIO m) => String -> GameState -> [BImage] -> m ()
 drawGameState tag gs bimg =
@@ -145,25 +146,25 @@ drawGameState tag gs bimg =
 -- | Let the user iterate through game records. Optional list of games @mgs@.
 -- Default location will be used if Nothing.
 -- Executes @exec@ when user press Enter
-drawGameFinder :: FilePath -> Maybe [FilePath] -> (Int,Int) -> (GameState -> IO ()) -> IO ()
+drawGameFinder :: FilePath -> Maybe [FilePath] -> (Integer,Integer) -> (GameState -> IO ()) -> IO ()
 drawGameFinder data_dir mgs (i0,j0) execfunc = do
   unbufferStdin
   let d = data_dir
   gs <-
     case mgs of
-      Just x -> return (map (</> "%04d.json") x)
+      Just x -> return x
       Nothing -> do
-        map (</> "%04d.json") <$> map (d </>) <$> filter ("game"`isPrefixOf`) <$> getDirectoryContents d
-  let imax = length gs
-  flip evalStateT (i0::Int, j0::Int) $
+        map (d </>) <$> filter ("game"`isPrefixOf`) <$> getDirectoryContents d
+  let imax = ilength gs
+  flip evalStateT (i0, j0) $
     let
-      fn i j = printf (gs !! i) j
+      gamedir i = gs!!(fromInteger i)
 
-      display :: (MonadIO m) => (Int,Int) -> m ()
+      display :: (MonadIO m) => (Integer,Integer) -> m ()
       display (i,j) = do
-        ss <- loadState (fn i j)
+        ss <- loadState (gamedir i) j
         clearTerminal
-        out [ tpack (fn i j), "address", tshow i <> "," <> tshow j ]
+        out [ "game", tpack $ gamedir i, "turn", tshow j, "address", tshow i <> "," <> tshow j ]
         blankLine
         drawGameState "?" ss []
         out [ "Use j/k to iterate through the games" ]
@@ -185,7 +186,7 @@ drawGameFinder data_dir mgs (i0,j0) execfunc = do
 
       case c of
         'o' -> liftIO $ do
-          ss <- loadState (fn i j)
+          ss <- loadState (gamedir i) j
           execfunc ss
 
         _ -> do

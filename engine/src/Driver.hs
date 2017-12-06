@@ -103,8 +103,8 @@ controller_threaded botWarmup botMove = do
 -- | Controller implements common interaction between bot functions and the driver.
 -- `controller_simple init step` calls `init` once, then performs `step` in a loop.
 controller_simple :: (MonadIO m, MonadBot m)
-       => (forall m . (MonadIO m) => GameState -> m a)
-       -> (forall g m . (MonadIO m) => a -> GameState -> m Dir)
+       => (GameState -> IO a)
+       -> (a -> GameState -> IO Dir)
        -> m ()
 controller_simple botWarmup botMove = do
   (gs0,_) <- botInit
@@ -112,7 +112,7 @@ controller_simple botWarmup botMove = do
     a <- liftIO (botWarmup gs0)
     forever $ do
       gs <- get
-      x <- botMove a gs
+      x <- liftIO (botMove a gs)
       (gs',_) <- lift $ botApplyMove x
       put gs'
 
@@ -203,11 +203,11 @@ $(makeLenses ''DriverSim_State)
 
 -- | Simulation driver running local simulation engine
 driver_sim
-  :: FilePath
+  :: GameState
   -> (forall m g . (MonadBot m, MonadIO m) => HashMap HeroId (m ()))
   -> IO ()
 
-driver_sim file ctl = do
+driver_sim ss0 ctl = do
 
   handle (\(e :: SomeException) -> do
        Text.putStrLn $ "Got an exception: " <> tshow e) $
@@ -219,9 +219,6 @@ driver_sim file ctl = do
     runBot bot >>= \case
       BotInit k -> return k
       _ -> fail "driver_sim2: expected BotInit"
-
-  {- Initial server state -}
-  ss0 <- loadState file
 
   let ds0 = DriverSim_State ss0 ctl'
 

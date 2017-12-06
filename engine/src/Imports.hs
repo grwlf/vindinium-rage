@@ -122,6 +122,8 @@ trace' a b = trace (ppShow a) b
 assert :: (Monad m, Show x) => x -> Bool -> m ()
 assert x b = if not b then error (show x) else return ()
 
+delay :: RealFrac t => t -> IO ()
+delay secs = threadDelay (round $ secs * 1.0e6)
 
 {- Text -}
 
@@ -165,6 +167,15 @@ ilength l = toInteger $ length l
 nlength :: (Num n, Foldable t) => t a -> n
 nlength l = fromInteger $ toInteger $ length l
 
+ptake :: (Ord k) => Int -> MaxPQueue k a -> [(k,a)]
+ptake n q = MaxPQueue.take n q
+
+pmax :: (Ord k) => MaxPQueue k a -> Maybe a
+pmax q = fmap fst $ MaxPQueue.maxView q
+
+pmin :: (Ord k) => MinPQueue k a -> Maybe a
+pmin q = fmap fst $ MinPQueue.minView q
+
 {- Lenses -}
 
 (.>) :: s -> Control.Lens.Getter.Getting a s a -> a
@@ -199,14 +210,3 @@ whileM m = do
   case mb_x of
     Nothing -> whileM m
     Just x -> return x
-
-{- PrioQueues -}
-
-ptake :: (Ord k) => Int -> MaxPQueue k a -> [(k,a)]
-ptake n q = MaxPQueue.take n q
-
-pmax :: (Ord k) => MaxPQueue k a -> Maybe a
-pmax q = fmap fst $ MaxPQueue.maxView q
-
-pmin :: (Ord k) => MinPQueue k a -> Maybe a
-pmin q = fmap fst $ MinPQueue.minView q
