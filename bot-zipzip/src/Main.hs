@@ -30,6 +30,7 @@ data Args = Args {
   , args_replay_mb :: Maybe String
   , args_sim_mb :: Maybe String
   , args_turn :: Integer
+  , args_verbose :: Bool
   } deriving(Show)
 
 getArgs :: IO Args
@@ -45,6 +46,7 @@ getArgs = execParser (info ((
     <*> (optional (option str (long "replay" <> short 'r')))
     <*> (optional (option str (long "sim" <> short 's')))
     <*> (read <$> option str (long "turn" <> short 't' <> value "0"))
+    <*> switch (long "verbose" <> short 'v')
   ) <**> helper) idm)
 
 data BotState = BotState {
@@ -81,10 +83,15 @@ main = do
       driver_sim gs0 $
         HashMap.fromList $ hids `zip` [
               controller_simple (return . warmup) $ \bs gs -> do
-                delay 0.3
-                clearTerminal
-                drawGameState "?" gs []
-                return (fst $ move bs gs)
+                (move,plans) <- pure $ move bs gs
+                case args_verbose of
+                  True -> do
+                    delay 0.3
+                    clearTerminal
+                    drawGameState "?" gs [drawGamePlans $ take 5 plans]
+                  False -> do
+                    return ()
+                return move
             , controller_simple Bot.Random.init Bot.Random.step
             , controller_simple Bot.Random.init Bot.Random.step
             , controller_simple Bot.Random.init Bot.Random.step

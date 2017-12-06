@@ -69,8 +69,6 @@ planStep p Plan{..} =
     (p':ps) -> posDiff p p'
     [] -> posDiff p (p_pos planPath)
 
--- type PlanQueue = MaxPQueue Reward Plan
-
 describePlan :: Plan -> Text
 describePlan Plan{..} = (printTileC planTile) <> printPos (p_pos planPath)
 
@@ -89,29 +87,35 @@ drawGamePlans plans =
       <> [(planTgt (head l), Left clrDef_Red)]
 
 
+type Distance = Integer
+type Danger = Bool
+type PlanQueue = MinPQueue (Danger,Distance) Plan
+type Clustering = (ClusterMap Mines, ClusterMap Tavs)
+
 -- | Search for nearby mines available for capturing
-capturePlans :: Game -> Hero -> [HeroId] -> ClusterMap Mines -> [Plan]
-capturePlans g h allies cm =
+capturePlans :: Game -> Hero -> [HeroId] -> Clustering -> PlanQueue
+capturePlans g h allies (cm,_) =
   flip4 foldGoals cm (h.>heroPos) mempty $ \d (node,goal) acc -> if
     |d>2 && (not $ null acc) -> acc
     |otherwise ->
+      let
+        safeplans gt a =
+          flip3 foldr (astarNode g h node (enemiesKillZone g h)) a $ \path acc' ->
+            MinPQueue.insert (False, pathLength path) (Plan path gt True) acc'
+        unsafeplans gt a =
+          flip3 foldr (astarNode g h node emptyKillZone) a $ \path acc' ->
+            MinPQueue.insert (True, pathLength path) (Plan path gt True) acc'
+      in
       case gameTile g (goal.>goalPos) of
         gt@(MineTile (Just mhid))
           |mhid == h.>heroId -> acc
           |(mhid`elem`allies) && (h.>heroMineCount > 2) -> acc
           |otherwise ->
-            let
-              safeplans a =
-                flip3 foldr (astarNode g h node (enemiesKillZone g h)) a $ \path acc' ->
-                  (Plan path gt True):acc'
-              unsafeplans a =
-                flip3 foldr (astarNode g h node emptyKillZone) a $ \path acc' ->
-                  (Plan path gt False):acc'
-            in
-            safeplans (unsafeplans acc)
-        otherwise -> acc
-
-type Clustering = (ClusterMap Mines, ClusterMap Tavs)
+            safeplans gt (unsafeplans gt acc)
+        gt@(MineTile Nothing) ->
+          safeplans gt (unsafeplans gt acc)
+        otherwise ->
+          acc
 
 warmup :: GameState -> Clustering
 warmup gs =
@@ -124,7 +128,14 @@ warmup gs =
   (cm,ct)
 
 move :: Clustering -> GameState -> (Dir, [Plan])
-move cls gs = (North, mempty)
+move cls gs =
+  let
+    g = gs.>stateGame
+    h = gs.>stateHero
+    plans = capturePlans g h [] cls
+    move = fromMaybe Stay (planStep (h.>heroPos) <$> pmin plans)
+  in
+  (move, toList plans)
 
 warmupIO :: GameState -> IO (MVar Clustering)
 warmupIO gs = do
