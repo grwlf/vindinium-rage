@@ -40,7 +40,8 @@ library
                        binary,
                        psqueues,
                        unordered-containers,
-                       flippers
+                       flippers,
+                       random
 
   exposed-modules:     Client
                        Types

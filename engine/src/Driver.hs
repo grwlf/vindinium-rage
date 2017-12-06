@@ -114,7 +114,11 @@ controller_simple botWarmup botMove = do
       gs <- get
       x <- liftIO (botMove a gs)
       (gs',_) <- lift $ botApplyMove x
-      put gs'
+      case gs.>stateGame.gameFinished of
+        False -> do
+          put gs'
+        True -> do
+          lift botFinish
 
 
 -- | Command-line arguments
@@ -178,6 +182,9 @@ driver_net key DriverSettings{..} bot =
     r <- lift $ runBot $ bot (gs, tstart)
 
     case r of
+      BotInit _ ->
+        fail "driver_net: repeated BotInit response from bot"
+
       BotMove dir k -> do
         mb_gs' <- applyMove cls gs dir
         tstart' <- liftIO getCurrentTime
@@ -218,7 +225,7 @@ driver_sim ss0 ctl = do
   ctl' <- forM ctl $ \bot -> do
     runBot bot >>= \case
       BotInit k -> return k
-      _ -> fail "driver_sim2: expected BotInit"
+      _ -> fail "driver_sim: expected BotInit"
 
   let ds0 = DriverSim_State ss0 ctl'
 
@@ -241,6 +248,9 @@ driver_sim ss0 ctl = do
     r <- lift $ runBot $ bot (gs,tstart)
 
     case r of
+      BotInit _ ->
+        fail "driver_sim: repeated BotInit response from bot"
+
       BotMove dir k -> do
         ds_gs.stateGame %= sim hid dir
         ds_ctl.(idx hid) %= const k

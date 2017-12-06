@@ -168,6 +168,7 @@ let
         src = builtins.filterSource distSourceFilter ./.;
         isLibrary = true;
         isExecutable = true;
+        doHaddock = false;
         libraryHaskellDepends = [
           aeson base binary bytestring containers deepseq directory filepath
           hashable heap http-client http-types lens
