@@ -19,6 +19,7 @@ import Brain
 import Cli
 import Util
 
+import Bot.Random
 -- import TF
 
 key :: Key
@@ -28,7 +29,7 @@ data Args = Args {
     args_ds :: DriverSettings
   , args_replay_mb :: Maybe String
   , args_sim_mb :: Maybe String
-  , args_turn :: Int
+  , args_turn :: Integer
   } deriving(Show)
 
 getArgs :: IO Args
@@ -69,9 +70,28 @@ main = do
   DriverSettings{..} <- pure args_ds
 
   case (args_replay_mb, args_sim_mb) of
+
+    {- Simulation mode -}
+
     (Nothing, Just args_sim) ->
-      out [ "simulation is to be defined" ]
-      undefined
+      let
+        hids = map HeroId [1..4]
+      in do
+      gs0 <- loadState args_sim args_turn
+      driver_sim gs0 $
+        HashMap.fromList $ hids `zip` [
+              controller_simple (return . warmup) $ \bs gs -> do
+                delay 0.3
+                clearTerminal
+                drawGameState "?" gs []
+                return (fst $ move bs gs)
+            , controller_simple Bot.Random.init Bot.Random.step
+            , controller_simple Bot.Random.init Bot.Random.step
+            , controller_simple Bot.Random.init Bot.Random.step
+            ]
+
+
+    {- Replay mode -}
 
     (Just args_replay, Nothing) ->
       let
@@ -91,8 +111,9 @@ main = do
         clearTerminal
         drawGameState "?" gs [ drawGamePlans plans ]
         out [ describePlans plans ]
-        -- out [ tshow $ killPlan g h (gs.>stateGame.gameHeroes.(idx (HeroId 1))) bot_clt ]
         return ()
+
+    {- Online mode -}
 
     (Nothing, Nothing) -> do
       out [ "Starting Vindinium bot, training mode:", tshow ds_training,
@@ -162,6 +183,8 @@ main = do
                 {- Remove game dump -}
                 when (not (bs.>bs_dump)) $ do
                   removeGame ds_tag (gs.>stateGame.gameId) (gs.>stateHero.heroId)
+
+    {- Invalid mode -}
 
     (_, _) -> do
       out [ "Invlaid arguments combination, see --help" ]
