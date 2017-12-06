@@ -1,4 +1,4 @@
-{ nixpkgs ? import ../../exming/lib/nixpkgs {}, compiler ? "ghc802", build ? false }:
+{ nixpkgs ? import ../nixpkgs {}, compiler ? "ghc802", build ? false }:
 
 let
 
