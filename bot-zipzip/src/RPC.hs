@@ -20,6 +20,16 @@ import qualified Data.Text as Text
 
 import TF
 
+
+-- data Emebedding = Embedding {
+--   embed :: HashMap Int (HashMap Pos Double)
+-- }
+
+
+-- embed :: Board -> 
+
+
+
 testRPC :: IO ()
 testRPC = do
   transport  <- hOpen ("localhost", PortNumber 9090)
@@ -28,3 +38,4 @@ testRPC = do
 
   Client.step client (HashMap.empty)
   printf "Done\n"
+
